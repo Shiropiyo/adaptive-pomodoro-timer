@@ -13,7 +13,7 @@
     <div id="root"></div>
     
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef } = React;
 
 const AdaptivePomodoro = () => {
   // 基本状態
@@ -386,13 +386,159 @@ const AdaptivePomodoro = () => {
         )
       ),
 
-      // ダイアログ部分は省略（長すぎるため）
-      // 基本機能は動作するはずです
+      // 理由入力ダイアログ
+      showReasonDialog && React.createElement('div', {
+        className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
+      },
+        React.createElement('div', {
+          className: 'bg-white p-6 rounded-lg max-w-sm w-full'
+        },
+          React.createElement('h3', {
+            className: 'text-lg font-medium mb-4'
+          }, '何が嫌でしたか？'),
+          React.createElement('textarea', {
+            value: reason,
+            onChange: (e) => setReason(e.target.value),
+            className: 'w-full p-3 border border-gray-300 rounded-lg mb-4 resize-none',
+            rows: 3,
+            placeholder: '例：レポートを書かなければならない...'
+          }),
+          React.createElement('div', {
+            className: 'flex space-x-2'
+          },
+            React.createElement('button', {
+              onClick: handleReasonSubmit,
+              className: 'flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors'
+            }, '開始')
+          ),
+          React.createElement('div', {
+            className: 'mt-2 text-xs text-gray-500 text-center'
+          }, `タイマーは既に開始されています (${currentWorkDuration}分)`)
+        )
+      ),
+
+      // 継続確認ダイアログ
+      showContinueDialog && React.createElement('div', {
+        className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
+      },
+        React.createElement('div', {
+          className: 'bg-white p-6 rounded-lg max-w-sm w-full text-center'
+        },
+          React.createElement('h3', {
+            className: 'text-lg font-medium mb-4'
+          }, `${currentWorkDuration}分お疲れさまでした！`),
+          React.createElement('div', {
+            className: 'mb-6'
+          },
+            React.createElement('p', {
+              className: 'text-sm text-gray-600 mb-2'
+            }, `次は${sessionCount + 1 < workDurations.length ? workDurations[sessionCount + 1] : 15}分の作業になります`),
+            React.createElement('p', {
+              className: 'text-sm text-gray-600'
+            }, '続けられそうですか？（休憩なしで即座に開始）')
+          ),
+          React.createElement('div', {
+            className: 'flex space-x-2'
+          },
+            React.createElement('button', {
+              onClick: handleContinue,
+              className: 'flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors'
+            }, '続ける'),
+            React.createElement('button', {
+              onClick: handleStop,
+              className: 'flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors'
+            }, '終了')
+          )
+        )
+      ),
+
+      // タスク分解提案ダイアログ
+      showBreakSuggestion && React.createElement('div', {
+        className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
+      },
+        React.createElement('div', {
+          className: 'bg-white p-6 rounded-lg max-w-sm w-full'
+        },
+          React.createElement('h3', {
+            className: 'text-lg font-medium mb-4'
+          }, 'タスクを分解してみましょう'),
+          React.createElement('div', {
+            className: 'text-sm text-gray-600 mb-4'
+          },
+            React.createElement('p', {
+              className: 'mb-2'
+            }, '5分も集中できなかった場合は、タスクをより小さく分けると良いかもしれません：'),
+            React.createElement('ul', {
+              className: 'list-disc list-inside space-y-1'
+            },
+              React.createElement('li', {}, '資料を1ページだけ読む'),
+              React.createElement('li', {}, 'ファイルを開いてタイトルだけ書く'),
+              React.createElement('li', {}, '関連する道具や資料を机に並べる'),
+              React.createElement('li', {}, '5行だけメモを書く'),
+              React.createElement('li', {}, '1つの段落だけ読む')
+            )
+          ),
+          React.createElement('div', {
+            className: 'flex space-x-2'
+          },
+            React.createElement('button', {
+              onClick: () => handleBreakSuggestion('retry'),
+              className: 'flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm'
+            }, 'もう一度5分'),
+            React.createElement('button', {
+              onClick: () => handleBreakSuggestion('stop'),
+              className: 'flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm'
+            }, '今日は終了')
+          )
+        )
+      ),
+
+      // タスク完了ダイアログ
+      showTaskCompleteDialog && React.createElement('div', {
+        className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
+      },
+        React.createElement('div', {
+          className: 'bg-white p-6 rounded-lg max-w-sm w-full'
+        },
+          React.createElement('h3', {
+            className: 'text-lg font-medium mb-4'
+          }, 'タスク完了！'),
+          React.createElement('div', {
+            className: 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded'
+          },
+            React.createElement('div', {
+              className: 'text-sm text-gray-600 mb-1'
+            }, '取り組んだ課題:'),
+            React.createElement('div', {
+              className: 'text-sm font-medium text-gray-800'
+            }, currentTaskReason)
+          ),
+          React.createElement('div', {
+            className: 'mb-4'
+          },
+            React.createElement('label', {
+              className: 'block text-sm font-medium text-gray-700 mb-2'
+            }, '実際に何をどこまでやりましたか？'),
+            React.createElement('textarea', {
+              value: taskResult,
+              onChange: (e) => setTaskResult(e.target.value),
+              className: 'w-full p-3 border border-gray-300 rounded-lg resize-none',
+              rows: 3,
+              placeholder: '例：7人分の退院サマリを作成完了'
+            })
+          ),
+          React.createElement('div', {
+            className: 'flex space-x-2'
+          },
+            React.createElement('button', {
+              onClick: handleTaskComplete,
+              className: 'flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors'
+            }, '記録する')
+          )
+        )
+      )
     )
   );
 };
 
 ReactDOM.render(React.createElement(AdaptivePomodoro), document.getElementById('root'));
-    </script>
-</body>
-</html>
