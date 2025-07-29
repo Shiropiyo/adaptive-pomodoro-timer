@@ -177,6 +177,8 @@ const AdaptivePomodoro = () => {
     setShowContinueDialog(false);
     setIsTimerFinished(false);
     setSessionCount(prev => prev + 1);
+      // セッション完了でエサ獲得
+    setFoodCount(prev => prev + 1);
     
     const currentActualTime = Math.ceil((Date.now() - workStartTime) / 60000);
     if (currentActualTime >= 56) {
