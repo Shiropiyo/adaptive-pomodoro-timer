@@ -229,6 +229,15 @@ const getBreathingText = () => {
   return '';
 };
 
+const handleWorkoutSuggestion = () => {
+  setMotivationMode('workout-suggestion');
+  setShowPassiveTaskSubmit(false);
+};
+
+const handleReturnFromWorkout = () => {
+  setMotivationMode('task-input');
+};
+
 React.createElement('button', {
   onClick: handlePassiveTaskStart,
   className: 'w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
