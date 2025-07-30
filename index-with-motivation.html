@@ -170,21 +170,10 @@ const [showWorkoutSuggestion, setShowWorkoutSuggestion] = useState(false);
   setMotivationMode('breathing');
   setBreathingCycle(0);
   setBreathingPhase('inhale');
-
-  const handleWorkoutSuggestion = () => {
-  setMotivationMode('workout-suggestion');
-  setShowPassiveTaskSubmit(false);
-};
-
-const handleReturnFromWorkout = () => {
-  setMotivationMode('task-input');
-};
-
 };
 
 const handlePassiveTaskSubmit = () => {
   if (passiveTask.trim()) {
-    // 実際の実装ではここでClaude APIを呼んでタスクを分解
     setShowPassiveTaskSubmit(true);
   }
 };
@@ -204,6 +193,15 @@ const handleWalkSuggestion = () => {
 };
 
 const handleReturnFromWalk = () => {
+  setMotivationMode('task-input');
+};
+
+const handleWorkoutSuggestion = () => {
+  setMotivationMode('workout-suggestion');
+  setShowPassiveTaskSubmit(false);
+};
+
+const handleReturnFromWorkout = () => {
   setMotivationMode('task-input');
 };
 
@@ -229,37 +227,6 @@ const getBreathingText = () => {
   return '';
 };
 
-const handleWorkoutSuggestion = () => {
-  setMotivationMode('workout-suggestion');
-  setShowPassiveTaskSubmit(false);
-};
-
-const handleReturnFromWorkout = () => {
-  setMotivationMode('task-input');
-};
-
-React.createElement('button', {
-  onClick: handlePassiveTaskStart,
-  className: 'w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-}, 'はい、5分だけやってみます'),
-
-React.createElement('button', {
-  onClick: handleWalkSuggestion,
-  className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-}, '少し歩いてきます'),
-
-React.createElement('button', {
-  onClick: handleWorkoutSuggestion,
-  className: 'w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-}, '筋トレしてきます')
-
-  const handleReasonSubmit = () => {
-    if (reason.trim()) {
-      setCurrentTaskReason(reason.trim());
-      setReason('');
-    }
-    setShowReasonDialog(false);
-  };
 
   const handleTaskComplete = () => {
     const actualWorkTime = Math.ceil((Date.now() - workStartTime) / 60000);
