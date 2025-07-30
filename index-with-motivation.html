@@ -50,6 +50,8 @@ const [breathingCycle, setBreathingCycle] = useState(0);
 const [passiveTask, setPassiveTask] = useState('');
 const [showPassiveTaskSubmit, setShowPassiveTaskSubmit] = useState(false);
 
+const [showWorkoutSuggestion, setShowWorkoutSuggestion] = useState(false);
+
   // ペット関連の状態
   const [petLevel, setPetLevel] = useState(1);
   const [foodCount, setFoodCount] = useState(0);
@@ -111,7 +113,7 @@ const [showPassiveTaskSubmit, setShowPassiveTaskSubmit] = useState(false);
           }
           return 'inhale';
         });
-      }, 4000); // 4秒間隔
+    }, breathingPhase === 'inhale' ? 4000 : breathingPhase === 'hold' ? 7000 : 8000);
     } else {
       if (breathingIntervalRef.current) {
         clearInterval(breathingIntervalRef.current);
@@ -168,6 +170,16 @@ const [showPassiveTaskSubmit, setShowPassiveTaskSubmit] = useState(false);
   setMotivationMode('breathing');
   setBreathingCycle(0);
   setBreathingPhase('inhale');
+
+  const handleWorkoutSuggestion = () => {
+  setMotivationMode('workout-suggestion');
+  setShowPassiveTaskSubmit(false);
+};
+
+const handleReturnFromWorkout = () => {
+  setMotivationMode('task-input');
+};
+
 };
 
 const handlePassiveTaskSubmit = () => {
@@ -216,6 +228,21 @@ const getBreathingText = () => {
   if (breathingPhase === 'exhale') return '息を吐いて';
   return '';
 };
+
+React.createElement('button', {
+  onClick: handlePassiveTaskStart,
+  className: 'w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+}, 'はい、5分だけやってみます'),
+
+React.createElement('button', {
+  onClick: handleWalkSuggestion,
+  className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+}, '少し歩いてきます'),
+
+React.createElement('button', {
+  onClick: handleWorkoutSuggestion,
+  className: 'w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+}, '筋トレしてきます')
 
   const handleReasonSubmit = () => {
     if (reason.trim()) {
@@ -587,6 +614,36 @@ motivationMode === 'walk-suggestion' && React.createElement('div', {
         onClick: handleReturnFromWalk,
         className: 'w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
       }, '戻ってきました'),
+      
+      React.createElement('button', {
+        onClick: resetMotivationMode,
+        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, 'やっぱりキャンセル')
+    )
+  )
+),
+// 筋トレ提案モード
+motivationMode === 'workout-suggestion' && React.createElement('div', {
+  className: 'fixed inset-0 bg-gradient-to-br from-purple-50 to-violet-100 flex items-center justify-center p-4 z-50'
+},
+  React.createElement('div', {
+    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+  },
+    React.createElement('h2', {
+      className: 'text-2xl font-bold text-gray-800 mb-6'
+    }, '軽く体を動かしませんか？'),
+    
+    React.createElement('p', {
+      className: 'text-gray-600 mb-8'
+    }, '10-15分程度、腕立て伏せやスクワットなど軽い運動をして血流を良くしましょう。体を動かすと頭もスッキリします。'),
+    
+    React.createElement('div', {
+      className: 'space-y-3'
+    },
+      React.createElement('button', {
+        onClick: handleReturnFromWorkout,
+        className: 'w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, '筋トレ完了！'),
       
       React.createElement('button', {
         onClick: resetMotivationMode,
