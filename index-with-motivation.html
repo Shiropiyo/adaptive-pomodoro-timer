@@ -367,6 +367,20 @@ React.createElement('div', {
             className: 'w-full py-3 px-4 bg-gray-400 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors'
         }, '何のやる気も出ない')
         ), 
+
+// 受動的モード表示
+motivationMode === 'passive' && React.createElement('div', {
+  className: 'text-center p-6 bg-blue-50 border border-blue-200 rounded-lg'
+},
+  React.createElement('h3', {
+    className: 'text-lg font-medium text-blue-800 mb-4'
+  }, '大丈夫です、一緒にゆっくりしましょう'),
+  React.createElement('button', {
+    onClick: () => setMotivationMode('normal'),
+    className: 'px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600'
+  }, '通常モードに戻る')
+),
+
         currentPhase === 'completed' && React.createElement('div', {
           className: 'text-center'
         },
