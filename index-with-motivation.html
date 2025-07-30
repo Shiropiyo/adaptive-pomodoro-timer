@@ -44,14 +44,19 @@ const AdaptivePomodoro = () => {
   const [workStartTime, setWorkStartTime] = useState(null);
 
 // 新しく追加：やる気モード管理
-const [motivationMode, setMotivationMode] = useState('normal'); // 'normal' or 'passive'
-    
+const [motivationMode, setMotivationMode] = useState('normal'); // 'normal', 'breathing', 'task-input', 'walk-suggestion'
+const [breathingPhase, setBreathingPhase] = useState('inhale'); // 'inhale', 'hold', 'exhale'
+const [breathingCycle, setBreathingCycle] = useState(0);
+const [passiveTask, setPassiveTask] = useState('');
+const [showPassiveTaskSubmit, setShowPassiveTaskSubmit] = useState(false);
+
   // ペット関連の状態
   const [petLevel, setPetLevel] = useState(1);
   const [foodCount, setFoodCount] = useState(0);
   const [petType, setPetType] = useState('egg');
     
   const intervalRef = useRef(null);
+  const breathingIntervalRef = useRef(null);
   const workDurations = [5, 6, 8, 10, 12, 15];
   
   // ローカルストレージから復元
@@ -84,7 +89,42 @@ const [motivationMode, setMotivationMode] = useState('normal'); // 'normal' or '
   useEffect(() => {
     saveData();
   }, [reasonHistory, totalWorkTime, totalExp, level]);
-  
+
+  // 呼吸ガイド機能
+  useEffect(() => {
+    if (motivationMode === 'breathing') {
+      breathingIntervalRef.current = setInterval(() => {
+        setBreathingPhase(prev => {
+          if (prev === 'inhale') return 'hold';
+          if (prev === 'hold') return 'exhale';
+          if (prev === 'exhale') {
+            setBreathingCycle(cycle => {
+              const newCycle = cycle + 1;
+              if (newCycle >= 5) {
+                // 5サイクル完了
+                setMotivationMode('task-input');
+                return 0;
+              }
+              return newCycle;
+            });
+            return 'inhale';
+          }
+          return 'inhale';
+        });
+      }, 4000); // 4秒間隔
+    } else {
+      if (breathingIntervalRef.current) {
+        clearInterval(breathingIntervalRef.current);
+      }
+    }
+
+    return () => {
+      if (breathingIntervalRef.current) {
+        clearInterval(breathingIntervalRef.current);
+      }
+    };
+  }, [motivationMode]);
+
   useEffect(() => {
     if (currentPhase === 'work') {
       intervalRef.current = setInterval(() => {
@@ -123,6 +163,59 @@ const [motivationMode, setMotivationMode] = useState('normal'); // 'normal' or '
     setTimeLeft(currentWorkDuration * 60);
     setWorkStartTime(Date.now());
   };
+
+  const startBreathing = () => {
+  setMotivationMode('breathing');
+  setBreathingCycle(0);
+  setBreathingPhase('inhale');
+};
+
+const handlePassiveTaskSubmit = () => {
+  if (passiveTask.trim()) {
+    // 実際の実装ではここでClaude APIを呼んでタスクを分解
+    setShowPassiveTaskSubmit(true);
+  }
+};
+
+const handlePassiveTaskStart = () => {
+  setMotivationMode('normal');
+  setCurrentWorkDuration(5);
+  setShowPassiveTaskSubmit(false);
+  setReason(passiveTask);
+  setPassiveTask('');
+  startWork();
+};
+
+const handleWalkSuggestion = () => {
+  setMotivationMode('walk-suggestion');
+  setShowPassiveTaskSubmit(false);
+};
+
+const handleReturnFromWalk = () => {
+  setMotivationMode('task-input');
+};
+
+const resetMotivationMode = () => {
+  setMotivationMode('normal');
+  setBreathingCycle(0);
+  setBreathingPhase('inhale');
+  setPassiveTask('');
+  setShowPassiveTaskSubmit(false);
+};
+
+const getBreathingCircleSize = () => {
+  if (breathingPhase === 'inhale') return 'w-32 h-32 scale-110';
+  if (breathingPhase === 'hold') return 'w-32 h-32 scale-110';
+  if (breathingPhase === 'exhale') return 'w-20 h-20 scale-90';
+  return 'w-24 h-24';
+};
+
+const getBreathingText = () => {
+  if (breathingPhase === 'inhale') return '息を吸って';
+  if (breathingPhase === 'hold') return '止めて';
+  if (breathingPhase === 'exhale') return '息を吐いて';
+  return '';
+};
 
   const handleReasonSubmit = () => {
     if (reason.trim()) {
@@ -363,22 +456,144 @@ React.createElement('div', {
         }, '嫌だなボタン'),
   
         React.createElement('button', {
-            onClick: () => setMotivationMode('passive'),
+            onClick: startBreathing,
             className: 'w-full py-3 px-4 bg-gray-400 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors'
         }, '何のやる気も出ない')
         ), 
 
-// 受動的モード表示
-motivationMode === 'passive' && React.createElement('div', {
-  className: 'text-center p-6 bg-blue-50 border border-blue-200 rounded-lg'
+// 呼吸ガイドモード
+motivationMode === 'breathing' && React.createElement('div', {
+  className: 'fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 z-50'
 },
-  React.createElement('h3', {
-    className: 'text-lg font-medium text-blue-800 mb-4'
-  }, '大丈夫です、一緒にゆっくりしましょう'),
-  React.createElement('button', {
-    onClick: () => setMotivationMode('normal'),
-    className: 'px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600'
-  }, '通常モードに戻る')
+  React.createElement('div', {
+    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+  },
+    React.createElement('h2', {
+      className: 'text-2xl font-bold text-gray-800 mb-8'
+    }, '呼吸ガイド'),
+    
+    React.createElement('div', {
+      className: 'flex flex-col items-center mb-8'
+    },
+      React.createElement('div', {
+        className: `${getBreathingCircleSize()} bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full transition-all duration-[4000ms] ease-in-out flex items-center justify-center mb-6`
+      },
+        React.createElement('span', {
+          className: 'text-white font-semibold text-lg'
+        }, breathingCycle + 1)
+      ),
+      
+      React.createElement('p', {
+        className: 'text-xl font-medium text-gray-700 mb-4'
+      }, getBreathingText()),
+      
+      React.createElement('p', {
+        className: 'text-sm text-gray-500'
+      }, `サイクル: ${breathingCycle + 1}/5`)
+    ),
+
+    React.createElement('button', {
+      onClick: resetMotivationMode,
+      className: 'px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm'
+    }, 'キャンセル')
+  )
+),
+
+// タスク入力モード
+motivationMode === 'task-input' && React.createElement('div', {
+  className: 'fixed inset-0 bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4 z-50'
+},
+  React.createElement('div', {
+    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full'
+  },
+    React.createElement('h2', {
+      className: 'text-2xl font-bold text-gray-800 mb-6 text-center'
+    }, '小さな一歩から'),
+    
+    React.createElement('p', {
+      className: 'text-gray-600 mb-6 text-center'
+    }, '目の前にあるタスクを1つだけ入力してください'),
+    
+    React.createElement('input', {
+      type: 'text',
+      value: passiveTask,
+      onChange: (e) => setPassiveTask(e.target.value),
+      placeholder: '例: メールを1通読む',
+      className: 'w-full p-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-green-500'
+    }),
+    
+    showPassiveTaskSubmit ? React.createElement('div', {
+      className: 'space-y-4'
+    },
+      React.createElement('div', {
+        className: 'p-4 bg-yellow-50 border border-yellow-200 rounded-lg'
+      },
+        React.createElement('p', {
+          className: 'text-sm text-gray-700 mb-2'
+        }, `タスク「${passiveTask}」を5分だけやってみませんか？`),
+        React.createElement('p', {
+          className: 'text-xs text-gray-500'
+        }, 'まずは小さく始めて、できたら続けていきましょう。')
+      ),
+      React.createElement('div', {
+        className: 'space-y-3'
+      },
+        React.createElement('button', {
+          onClick: handlePassiveTaskStart,
+          className: 'w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+        }, 'はい、5分だけやってみます'),
+        
+        React.createElement('button', {
+          onClick: handleWalkSuggestion,
+          className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+        }, 'いいえ、少し歩いてから考えます')
+      )
+    ) : React.createElement('div', {
+      className: 'space-y-3'
+    },
+      React.createElement('button', {
+        onClick: handlePassiveTaskSubmit,
+        disabled: !passiveTask.trim(),
+        className: 'w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, 'このタスクで5分やってみる'),
+      
+      React.createElement('button', {
+        onClick: resetMotivationMode,
+        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, 'キャンセル')
+    )
+  )
+),
+
+// 散歩提案モード
+motivationMode === 'walk-suggestion' && React.createElement('div', {
+  className: 'fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-4 z-50'
+},
+  React.createElement('div', {
+    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+  },
+    React.createElement('h2', {
+      className: 'text-2xl font-bold text-gray-800 mb-6'
+    }, '少し歩いてみませんか？'),
+    
+    React.createElement('p', {
+      className: 'text-gray-600 mb-8'
+    }, '5-10分程度、外の空気を吸ってリフレッシュしてください。戻ってきたら、また一緒に考えましょう。'),
+    
+    React.createElement('div', {
+      className: 'space-y-3'
+    },
+      React.createElement('button', {
+        onClick: handleReturnFromWalk,
+        className: 'w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, '戻ってきました'),
+      
+      React.createElement('button', {
+        onClick: resetMotivationMode,
+        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, 'やっぱりキャンセル')
+    )
+  )
 ),
 
         currentPhase === 'completed' && React.createElement('div', {
