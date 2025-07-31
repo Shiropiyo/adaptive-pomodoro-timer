@@ -1,1197 +1,1284 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>適応型ポモドーロタイマー</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>適応型ポモドーロタイマー</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body>
-    <div id="root"></div>
-    
-    <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+  <div id="root"></div>
 
-const AdaptivePomodoro = () => {
-  // 基本状態
-  const [currentPhase, setCurrentPhase] = useState('idle');
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [currentWorkDuration, setCurrentWorkDuration] = useState(5);
-  const [sessionCount, setSessionCount] = useState(0);
-  
-  // ダイアログ制御
-  const [showReasonDialog, setShowReasonDialog] = useState(false);
-  const [showContinueDialog, setShowContinueDialog] = useState(false);
-  const [showBreakSuggestion, setShowBreakSuggestion] = useState(false);
-  const [showTaskCompleteDialog, setShowTaskCompleteDialog] = useState(false);
-  
-  // タスク情報
-  const [reason, setReason] = useState('');
-  const [currentTaskReason, setCurrentTaskReason] = useState('');
-  const [taskResult, setTaskResult] = useState('');
-  const [reasonHistory, setReasonHistory] = useState([]);
-  
-  // 統計とゲーミフィケーション
-  const [totalWorkTime, setTotalWorkTime] = useState(0);
-  const [totalExp, setTotalExp] = useState(0);
-  const [level, setLevel] = useState(1);
-  
-  // その他の状態
-  const [isTimerFinished, setIsTimerFinished] = useState(false);
-  const [workStartTime, setWorkStartTime] = useState(null);
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
-// 新しく追加：やる気モード管理
-const [motivationMode, setMotivationMode] = useState('normal'); // 'normal', 'breathing', 'task-input', 'walk-suggestion'
-const [breathingPhase, setBreathingPhase] = useState('inhale'); // 'inhale', 'hold', 'exhale'
-const [breathingCycle, setBreathingCycle] = useState(0);
-const [passiveTask, setPassiveTask] = useState('');
-const [showPassiveTaskSubmit, setShowPassiveTaskSubmit] = useState(false);
+    const AdaptivePomodoro = () => {
+      // 基本状態
+      const [currentPhase, setCurrentPhase] = useState('idle');
+      const [timeLeft, setTimeLeft] = useState(0);
+      const [currentWorkDuration, setCurrentWorkDuration] = useState(5);
+      const [sessionCount, setSessionCount] = useState(0);
 
-const [showWorkoutSuggestion, setShowWorkoutSuggestion] = useState(false);
+      // ダイアログ制御
+      const [showReasonDialog, setShowReasonDialog] = useState(false);
+      const [showContinueDialog, setShowContinueDialog] = useState(false);
+      const [showBreakSuggestion, setShowBreakSuggestion] = useState(false);
+      const [showTaskCompleteDialog, setShowTaskCompleteDialog] = useState(false);
 
-  // ペット関連の状態
-  const [petLevel, setPetLevel] = useState(1);
-  const [fireFood, setFireFood] = useState(0);    // 🔥火エサ
-  const [waterFood, setWaterFood] = useState(0);  // 💧水エサ
-  const [woodFood, setWoodFood] = useState(0);    // 🌿木エサ
+      // タスク情報
+      const [reason, setReason] = useState('');
+      const [currentTaskReason, setCurrentTaskReason] = useState('');
+      const [taskResult, setTaskResult] = useState('');
+      const [reasonHistory, setReasonHistory] = useState([]);
 
-  const [petType, setPetType] = useState('egg');
+      // 統計とゲーミフィケーション
+      const [totalWorkTime, setTotalWorkTime] = useState(0);
+      const [totalExp, setTotalExp] = useState(0);
+      const [level, setLevel] = useState(1);
 
-    // 戦闘システム関連の状態
-  const [currentBoss, setCurrentBoss] = useState(null);
-  const [battlePhase, setBattlePhase] = useState('none'); // 'none', 'preview', 'preparation', 'battle', 'result'
-  const [playerEquipment, setPlayerEquipment] = useState(0); // 防御力
-  const [battleResult, setBattleResult] = useState(null);
+      // その他の状態
+      const [isTimerFinished, setIsTimerFinished] = useState(false);
+      const [workStartTime, setWorkStartTime] = useState(null);
 
-  const intervalRef = useRef(null);
-  const breathingIntervalRef = useRef(null);
-  const workDurations = [5, 6, 8, 10, 12, 15];
+      // 新しく追加：やる気モード管理
+      const [motivationMode, setMotivationMode] = useState('normal'); // 'normal', 'breathing', 'task-input', 'walk-suggestion'
+      const [breathingPhase, setBreathingPhase] = useState('inhale'); // 'inhale', 'hold', 'exhale'
+      const [breathingCycle, setBreathingCycle] = useState(0);
+      const [passiveTask, setPassiveTask] = useState('');
+      const [showPassiveTaskSubmit, setShowPassiveTaskSubmit] = useState(false);
 
-  // ボス情報
-  const bossData = [
-  {
-    id: 'fire_dragon',
-    name: '炎のドラゴン',
-    emoji: '🐉',
-    attribute: 'fire',
-    hp: 100,
-    attack: 80,
-    description: '炎を吐く強力なドラゴン'
-  },
-  {
-    id: 'water_kraken',
-    name: '水のクラーケン',
-    emoji: '🐙',
-    attribute: 'water',
-    hp: 120,
-    attack: 75,
-    description: '深海から現れた巨大な触手の魔物'
-  },
-  {
-    id: 'wood_treant',
-    name: '森の番人',
-    emoji: '🌳',
-    attribute: 'wood',
-    hp: 90,
-    attack: 85,
-    description: '古い森を守る巨大な樹の精霊'
-  }
-];
+      const [showWorkoutSuggestion, setShowWorkoutSuggestion] = useState(false);
 
-  // 属性相性オブジェクト
-const attributeEffectiveness = {
-  fire: { strongAgainst: 'wood', weakAgainst: 'water' },
-  water: { strongAgainst: 'fire', weakAgainst: 'wood' },
-  wood: { strongAgainst: 'water', weakAgainst: 'fire' }
-};
+      // ペット関連の状態
+      const [petLevel, setPetLevel] = useState(1);
+      const [fireFood, setFireFood] = useState(0);    // 🔥火エサ
+      const [waterFood, setWaterFood] = useState(0);  // 💧水エサ
+      const [woodFood, setWoodFood] = useState(0);    // 🌿木エサ
 
-  // ローカルストレージから復元
-  useEffect(() => {
-    const saved = localStorage.getItem('pomodoroData');
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        setReasonHistory(data.reasonHistory || []);
-        setTotalWorkTime(data.totalWorkTime || 0);
-        setTotalExp(data.totalExp || 0);
-        setLevel(data.level || 1);
-      } catch (e) {
-        console.log('保存データの読み込みに失敗しました');
-      }
-    }
-  }, []);
+      const [petType, setPetType] = useState('egg');
 
-  // データを保存
-  const saveData = () => {
-    const data = {
-      reasonHistory,
-      totalWorkTime,
-      totalExp,
-      level
-    };
-    localStorage.setItem('pomodoroData', JSON.stringify(data));
-  };
+      // 戦闘システム関連の状態
+      const [currentBoss, setCurrentBoss] = useState(null);
+      const [battlePhase, setBattlePhase] = useState('none'); // 'none', 'preview', 'preparation', 'battle', 'result'
+      const [playerEquipment, setPlayerEquipment] = useState(0); // 防御力
+      const [battleResult, setBattleResult] = useState(null);
 
-  useEffect(() => {
-    saveData();
-  }, [reasonHistory, totalWorkTime, totalExp, level]);
+      // 休憩システム関連
+      const [isBreakTime, setIsBreakTime] = useState(false);
+      const [breakTimeLeft, setBreakTimeLeft] = useState(0);
 
-  // 呼吸ガイド機能
-  useEffect(() => {
-    if (motivationMode === 'breathing') {
-      breathingIntervalRef.current = setInterval(() => {
-        setBreathingPhase(prev => {
-          if (prev === 'inhale') return 'hold';
-          if (prev === 'hold') return 'exhale';
-          if (prev === 'exhale') {
-            setBreathingCycle(cycle => {
-              const newCycle = cycle + 1;
-              if (newCycle >= 5) {
-                // 5サイクル完了
-                setMotivationMode('task-input');
+      const intervalRef = useRef(null);
+      const breathingIntervalRef = useRef(null);
+      const workDurations = [5, 6, 8, 10, 12, 15];
+
+      // ボス情報
+      const bossData = [
+        {
+          id: 'fire_dragon',
+          name: '炎のドラゴン',
+          emoji: '🐉',
+          attribute: 'fire',
+          hp: 100,
+          attack: 80,
+          description: '炎を吐く強力なドラゴン'
+        },
+        {
+          id: 'water_kraken',
+          name: '水のクラーケン',
+          emoji: '🐙',
+          attribute: 'water',
+          hp: 120,
+          attack: 75,
+          description: '深海から現れた巨大な触手の魔物'
+        },
+        {
+          id: 'wood_treant',
+          name: '森の番人',
+          emoji: '🌳',
+          attribute: 'wood',
+          hp: 90,
+          attack: 85,
+          description: '古い森を守る巨大な樹の精霊'
+        }
+      ];
+
+      // 属性相性オブジェクト
+      const attributeEffectiveness = {
+        fire: { strongAgainst: 'wood', weakAgainst: 'water' },
+        water: { strongAgainst: 'fire', weakAgainst: 'wood' },
+        wood: { strongAgainst: 'water', weakAgainst: 'fire' }
+      };
+
+      // ローカルストレージから復元
+      useEffect(() => {
+        const saved = localStorage.getItem('pomodoroData');
+        if (saved) {
+          try {
+            const data = JSON.parse(saved);
+            setReasonHistory(data.reasonHistory || []);
+            setTotalWorkTime(data.totalWorkTime || 0);
+            setTotalExp(data.totalExp || 0);
+            setLevel(data.level || 1);
+            setFireFood(data.fireFood || 0);
+            setWaterFood(data.waterFood || 0);
+            setWoodFood(data.woodFood || 0);
+            setPetLevel(data.petLevel || 1);
+            setPlayerEquipment(data.playerEquipment || 0);
+          } catch (e) {
+            console.log('保存データの読み込みに失敗しました');
+          }
+        }
+      }, []);
+
+      // データを保存
+      const saveData = () => {
+        const data = {
+          reasonHistory,
+          totalWorkTime,
+          totalExp,
+          level,
+          fireFood,
+          waterFood,
+          woodFood,
+          petLevel,
+          playerEquipment
+        };
+        localStorage.setItem('pomodoroData', JSON.stringify(data));
+      };
+
+      useEffect(() => {
+        saveData();
+      }, [reasonHistory, totalWorkTime, totalExp, level, fireFood, waterFood, woodFood, petLevel, playerEquipment]
+      );
+
+      // 呼吸ガイド機能
+      useEffect(() => {
+        if (motivationMode === 'breathing') {
+          breathingIntervalRef.current = setInterval(() => {
+            setBreathingPhase(prev => {
+              if (prev === 'inhale') return 'hold';
+              if (prev === 'hold') return 'exhale';
+              if (prev === 'exhale') {
+                setBreathingCycle(cycle => {
+                  const newCycle = cycle + 1;
+                  if (newCycle >= 5) {
+                    // 5サイクル完了
+                    setMotivationMode('task-input');
+                    return 0;
+                  }
+                  return newCycle;
+                });
+                return 'inhale';
+              }
+              return 'inhale';
+            });
+          }, breathingPhase === 'inhale' ? 4000 : breathingPhase === 'hold' ? 7000 : 8000);
+        } else {
+          if (breathingIntervalRef.current) {
+            clearInterval(breathingIntervalRef.current);
+          }
+        }
+
+        return () => {
+          if (breathingIntervalRef.current) {
+            clearInterval(breathingIntervalRef.current);
+          }
+        };
+      }, [motivationMode, breathingPhase]);
+
+      useEffect(() => {
+        if (currentPhase === 'work') {
+          intervalRef.current = setInterval(() => {
+            setTimeLeft(prev => {
+              if (prev <= 1) {
+                setCurrentPhase('continue-check');
+                setShowContinueDialog(true);
+                setIsTimerFinished(true);
                 return 0;
               }
-              return newCycle;
+              return prev - 1;
             });
-            return 'inhale';
+          }, 1000);
+        } else {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
           }
-          return 'inhale';
-        });
-    }, breathingPhase === 'inhale' ? 4000 : breathingPhase === 'hold' ? 7000 : 8000);
-    } else {
-      if (breathingIntervalRef.current) {
-        clearInterval(breathingIntervalRef.current);
-      }
-    }
+        }
 
-    return () => {
-      if (breathingIntervalRef.current) {
-        clearInterval(breathingIntervalRef.current);
-      }
-    };
-  }, [motivationMode, breathingPhase]);
-
-  useEffect(() => {
-    if (currentPhase === 'work') {
-      intervalRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            setCurrentPhase('continue-check');
-            setShowContinueDialog(true);
-            setIsTimerFinished(true);
-            return 0;
+        return () => {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
           }
-          return prev - 1;
+        };
+      }, [currentPhase]);
+
+      // 休憩タイマー
+      useEffect(() => {
+        if (isBreakTime) {
+          intervalRef.current = setInterval(() => {
+            setBreakTimeLeft(prev => {
+              if (prev <= 1) {
+                setIsBreakTime(false);
+                // 休憩終了後、次のワークセッション開始
+                if (sessionCount < workDurations.length) {
+                  setCurrentWorkDuration(workDurations[sessionCount]);
+                  setCurrentPhase('work');
+                  setTimeLeft(workDurations[sessionCount] * 60);
+                  setWorkStartTime(Date.now()); // 作業開始時刻を設定
+                } else {
+                  setCurrentPhase('completed');
+                }
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        } else {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+          }
+        }
+
+        return () => {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+          }
+        };
+      }, [isBreakTime, sessionCount]);
+
+      const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      const getRandomFood = () => {
+        const foods = ['fire', 'water', 'wood'];
+        return foods[Math.floor(Math.random() * 3)];
+      };
+
+      // 戦闘システム関数
+      const getFoodCount = (attribute) => {
+        switch (attribute) {
+          case 'fire': return fireFood;
+          case 'water': return waterFood;
+          case 'wood': return woodFood;
+          default: return 0;
+        }
+      };
+
+      const getEffectiveAttribute = (bossAttribute) => {
+        switch (bossAttribute) {
+          case 'fire': return 'water';    // 火には水が有効
+          case 'water': return 'wood';    // 水には木が有効  
+          case 'wood': return 'fire';     // 木には火が有効
+          default: return 'fire';
+        }
+      };
+
+      const calculatePlayerPower = (boss) => {
+        const effectiveAttribute = getEffectiveAttribute(boss.attribute);
+        const effectiveFoodCount = getFoodCount(effectiveAttribute);
+
+        return {
+          hp: effectiveFoodCount,
+          attack: Math.floor(effectiveFoodCount * 1.5), // 有利属性ボーナス
+          defense: playerEquipment,
+          effectiveAttribute,
+          effectiveFoodCount
+        };
+      };
+
+      const simulateBattle = (playerPower, boss) => {
+        // 敵の攻撃でプレイヤーが受けるダメージ
+        const damageReceived = Math.max(0, boss.attack - playerPower.defense);
+        const playerSurvives = playerPower.hp > damageReceived;
+
+        // プレイヤーが敵を一撃で倒せるか
+        const canDefeatBoss = playerPower.attack >= boss.hp;
+
+        return {
+          victory: playerSurvives && canDefeatBoss,
+          damageReceived,
+          playerSurvives,
+          canDefeatBoss,
+          playerPower,
+          boss
+        };
+      };
+
+      const rollEquipmentGacha = (foodCost = 1) => {
+        const baseDefense = Math.floor(Math.random() * 11) + 5; // 5-15
+        const equipmentNames = ['鋼の盾', '魔法の鎧', '竜鱗の盾', '聖なる外套', '古の守護具'];
+        const randomName = equipmentNames[Math.floor(Math.random() * equipmentNames.length)];
+
+        return {
+          name: `${randomName} +${baseDefense}`,
+          defense: baseDefense,
+          cost: foodCost
+        };
+      };
+
+      const spawnRandomBoss = () => {
+        const randomBoss = bossData[Math.floor(Math.random() * bossData.length)];
+        setCurrentBoss({ ...randomBoss });
+        setBattlePhase('preview');
+      };
+
+      const startWork = () => {
+        setShowReasonDialog(true);
+        setCurrentPhase('work');
+        setTimeLeft(currentWorkDuration * 60);
+        setWorkStartTime(Date.now());
+      };
+
+      const startBreathing = () => {
+        setMotivationMode('breathing');
+        setBreathingCycle(0);
+        setBreathingPhase('inhale');
+      };
+
+      const handlePassiveTaskSubmit = () => {
+        if (passiveTask.trim()) {
+          setShowPassiveTaskSubmit(true);
+        }
+      };
+
+      const handlePassiveTaskStart = () => {
+        setMotivationMode('normal');
+        setCurrentWorkDuration(5);
+        setShowPassiveTaskSubmit(false);
+        setReason(passiveTask);
+        setPassiveTask('');
+        startWork();
+      };
+
+      const handleWalkSuggestion = () => {
+        setMotivationMode('walk-suggestion');
+        setShowPassiveTaskSubmit(false);
+      };
+
+      const handleReturnFromWalk = () => {
+        setMotivationMode('task-input');
+      };
+
+      const handleWorkoutSuggestion = () => {
+        setMotivationMode('workout-suggestion');
+        setShowPassiveTaskSubmit(false);
+      };
+
+      const handleReturnFromWorkout = () => {
+        setMotivationMode('task-input');
+      };
+
+      const resetMotivationMode = () => {
+        setMotivationMode('normal');
+        setBreathingCycle(0);
+        setBreathingPhase('inhale');
+        setPassiveTask('');
+        setShowPassiveTaskSubmit(false);
+      };
+
+      const getBreathingCircleSize = () => {
+        if (breathingPhase === 'inhale') return 'w-32 h-32 scale-110';
+        if (breathingPhase === 'hold') return 'w-32 h-32 scale-110';
+        if (breathingPhase === 'exhale') return 'w-20 h-20 scale-90';
+        return 'w-24 h-24';
+      };
+
+      const getBreathingText = () => {
+        if (breathingPhase === 'inhale') return '息を吸って';
+        if (breathingPhase === 'hold') return '止めて';
+        if (breathingPhase === 'exhale') return '息を吐いて';
+        return '';
+      };
+
+      const handleReasonSubmit = () => {
+        if (reason.trim()) {
+          setCurrentTaskReason(reason.trim());
+          setReason('');
+        }
+        setShowReasonDialog(false);
+      };
+
+
+      const handleTaskComplete = () => {
+        const actualWorkTime = Math.ceil((Date.now() - workStartTime) / 60000);
+        const expGained = Math.ceil(actualWorkTime * 1.5);
+
+        const now = new Date();
+        setReasonHistory(prev => [...prev, {
+          reason: currentTaskReason,
+          result: taskResult.trim() || '作業完了',
+          datetime: now.toLocaleString('ja-JP'),
+          plannedDuration: currentWorkDuration,
+          actualDuration: actualWorkTime,
+          expGained
+        }]);
+
+        setTotalWorkTime(prev => prev + actualWorkTime);
+        setTotalExp(prev => {
+          const newExp = prev + expGained;
+          const newLevel = Math.floor(newExp / 100) + 1;
+          setLevel(newLevel);
+          return newExp;
         });
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    }
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [currentPhase]);
+        // エサ獲得処理
+        const foodType = getRandomFood();
+        if (foodType === 'fire') setFireFood(prev => prev + 1);
+        if (foodType === 'water') setWaterFood(prev => prev + 1);
+        if (foodType === 'wood') setWoodFood(prev => prev + 1);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-  
-  const getRandomFood = () => {
-  const foods = ['fire', 'water', 'wood'];
-  return foods[Math.floor(Math.random() * 3)];
-  };
+        // 状態をリセット
+        setShowTaskCompleteDialog(false);
+        setCurrentPhase('idle');
+        setCurrentTaskReason('');
+        setTaskResult('');
+        setSessionCount(0);
+        setCurrentWorkDuration(5);
+        setTimeLeft(0);
+        setWorkStartTime(null);
+        setIsTimerFinished(false);
+      };
 
-  // 戦闘システム関数
-  const getFoodCount = (attribute) => {
-    switch(attribute) {
-      case 'fire': return fireFood;
-      case 'water': return waterFood;
-      case 'wood': return woodFood;
-      default: return 0;
-    }
-  };
-  
-  const getEffectiveAttribute = (bossAttribute) => {
-  switch(bossAttribute) {
-    case 'fire': return 'water';    // 火には水が有効
-    case 'water': return 'wood';    // 水には木が有効  
-    case 'wood': return 'fire';     // 木には火が有効
-    default: return 'fire';
-  }
-};
-  
-  const calculatePlayerPower = (boss) => {
-    const effectiveAttribute = getEffectiveAttribute(boss.attribute);
-    const effectiveFoodCount = getFoodCount(effectiveAttribute);
-    
-    return {
-      hp: effectiveFoodCount,
-      attack: Math.floor(effectiveFoodCount * 1.5), // 有利属性ボーナス
-      defense: playerEquipment,
-      effectiveAttribute,
-      effectiveFoodCount
-    };
-  };
-  
-  const simulateBattle = (playerPower, boss) => {
-    // 敵の攻撃でプレイヤーが受けるダメージ
-    const damageReceived = Math.max(0, boss.attack - playerPower.defense);
-    const playerSurvives = playerPower.hp > damageReceived;
-    
-    // プレイヤーが敵を一撃で倒せるか
-    const canDefeatBoss = playerPower.attack >= boss.hp;
-    
-    return {
-      victory: playerSurvives && canDefeatBoss,
-      damageReceived,
-      playerSurvives,
-      canDefeatBoss,
-      playerPower,
-      boss
-    };
-  };
-  
-  const rollEquipmentGacha = (foodCost = 1) => {
-    const baseDefense = Math.floor(Math.random() * 11) + 5; // 5-15
-    const equipmentNames = ['鋼の盾', '魔法の鎧', '竜鱗の盾', '聖なる外套', '古の守護具'];
-    const randomName = equipmentNames[Math.floor(Math.random() * equipmentNames.length)];
-    
-    return {
-      name: `${randomName} +${baseDefense}`,
-      defense: baseDefense,
-      cost: foodCost
-    };
-  };
-  
-  const spawnRandomBoss = () => {
-    const randomBoss = bossData[Math.floor(Math.random() * bossData.length)];
-    setCurrentBoss({...randomBoss});
-    setBattlePhase('preview');
-  };
+      const handleEarlyComplete = () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        setCurrentPhase('task-complete');
+        setShowTaskCompleteDialog(true);
+      };
 
-  const startWork = () => {
-    setShowReasonDialog(true);
-    setCurrentPhase('work');
-    setTimeLeft(currentWorkDuration * 60);
-    setWorkStartTime(Date.now());
-  };
-
-  const startBreathing = () => {
-  setMotivationMode('breathing');
-  setBreathingCycle(0);
-  setBreathingPhase('inhale');
-};
-
-const handlePassiveTaskSubmit = () => {
-  if (passiveTask.trim()) {
-    setShowPassiveTaskSubmit(true);
-  }
-};
-
-const handlePassiveTaskStart = () => {
-  setMotivationMode('normal');
-  setCurrentWorkDuration(5);
-  setShowPassiveTaskSubmit(false);
-  setReason(passiveTask);
-  setPassiveTask('');
-  startWork();
-};
-
-const handleWalkSuggestion = () => {
-  setMotivationMode('walk-suggestion');
-  setShowPassiveTaskSubmit(false);
-};
-
-const handleReturnFromWalk = () => {
-  setMotivationMode('task-input');
-};
-
-const handleWorkoutSuggestion = () => {
-  setMotivationMode('workout-suggestion');
-  setShowPassiveTaskSubmit(false);
-};
-
-const handleReturnFromWorkout = () => {
-  setMotivationMode('task-input');
-};
-
-const resetMotivationMode = () => {
-  setMotivationMode('normal');
-  setBreathingCycle(0);
-  setBreathingPhase('inhale');
-  setPassiveTask('');
-  setShowPassiveTaskSubmit(false);
-};
-
-const getBreathingCircleSize = () => {
-  if (breathingPhase === 'inhale') return 'w-32 h-32 scale-110';
-  if (breathingPhase === 'hold') return 'w-32 h-32 scale-110';
-  if (breathingPhase === 'exhale') return 'w-20 h-20 scale-90';
-  return 'w-24 h-24';
-};
-
-const getBreathingText = () => {
-  if (breathingPhase === 'inhale') return '息を吸って';
-  if (breathingPhase === 'hold') return '止めて';
-  if (breathingPhase === 'exhale') return '息を吐いて';
-  return '';
-};
-
-const handleReasonSubmit = () => {
-  if (reason.trim()) {
-    setCurrentTaskReason(reason.trim());
-    setReason('');
-  }
-  setShowReasonDialog(false);
-};
+      const handleContinue = () => {
+        setShowContinueDialog(false);
+        setIsTimerFinished(false);
+        setSessionCount(prev => prev + 1);
+        // セッション完了でエサ獲得
 
 
-  const handleTaskComplete = () => {
-    const actualWorkTime = Math.ceil((Date.now() - workStartTime) / 60000);
-    const expGained = Math.ceil(actualWorkTime * 1.5);
-    
-    const now = new Date();
-    setReasonHistory(prev => [...prev, {
-      reason: currentTaskReason,
-      result: taskResult.trim() || '作業完了',
-      datetime: now.toLocaleString('ja-JP'),
-      plannedDuration: currentWorkDuration,
-      actualDuration: actualWorkTime,
-      expGained
-    }]);
-    
-    setTotalWorkTime(prev => prev + actualWorkTime);
-    setTotalExp(prev => {
-      const newExp = prev + expGained;
-      const newLevel = Math.floor(newExp / 100) + 1;
-      setLevel(newLevel);
-      return newExp;
-    });
-      // エサ獲得処理
-    const foodType = getRandomFood();
-    if (foodType === 'fire') setFireFood(prev => prev + 1);
-    if (foodType === 'water') setWaterFood(prev => prev + 1);
-    if (foodType === 'wood') setWoodFood(prev => prev + 1);
-    
-    // 状態をリセット
-    setShowTaskCompleteDialog(false);
-    setCurrentPhase('idle');
-    setCurrentTaskReason('');
-    setTaskResult('');
-    setSessionCount(0);
-    setCurrentWorkDuration(5);
-    setTimeLeft(0);
-    setWorkStartTime(null);
-    setIsTimerFinished(false);
-  };
+        const foodType = getRandomFood();
+        if (foodType === 'fire') setFireFood(prev => prev + 1);
+        if (foodType === 'water') setWaterFood(prev => prev + 1);
+        if (foodType === 'wood') setWoodFood(prev => prev + 1);
 
-  const handleEarlyComplete = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    setCurrentPhase('task-complete');
-    setShowTaskCompleteDialog(true);
-  };
+        const currentActualTime = Math.ceil((Date.now() - workStartTime) / 60000);
+        if (currentActualTime >= 56) {
+          setCurrentPhase('completed');
+          return;
+        }
 
-  const handleContinue = () => {
-    setShowContinueDialog(false);
-    setIsTimerFinished(false);
-    setSessionCount(prev => prev + 1);
-      // セッション完了でエサ獲得
-  
-  
-   const foodType = getRandomFood();
-    if (foodType === 'fire') setFireFood(prev => prev + 1);
-    if (foodType === 'water') setWaterFood(prev => prev + 1);
-    if (foodType === 'wood') setWoodFood(prev => prev + 1);
-    
-    const currentActualTime = Math.ceil((Date.now() - workStartTime) / 60000);
-    if (currentActualTime >= 56) {
-      setCurrentPhase('completed');
-      return;
-    }
-    
-    const nextSessionIndex = sessionCount + 1;
-    if (nextSessionIndex < workDurations.length) {
-      setCurrentWorkDuration(workDurations[nextSessionIndex]);
-      setCurrentPhase('work');
-      setTimeLeft(workDurations[nextSessionIndex] * 60);
-    }
-  };
+        const nextSessionIndex = sessionCount + 1;
+        if (nextSessionIndex < workDurations.length) {
+          setCurrentWorkDuration(workDurations[nextSessionIndex]);
+          setCurrentPhase('work');
+          setTimeLeft(workDurations[nextSessionIndex] * 60);
+        }
+      };
 
-  const handleStop = () => {
-    setShowContinueDialog(false);
-    setIsTimerFinished(false);
-    
-    if (sessionCount === 0) {
-      setShowBreakSuggestion(true);
-    } else {
-      setShowTaskCompleteDialog(true);
-    }
-  };
+      const handleStop = () => {
+        setShowContinueDialog(false);
+        setIsTimerFinished(false);
 
-  const handleBreakSuggestion = (action) => {
-    setShowBreakSuggestion(false);
-    if (action === 'retry') {
-      setCurrentPhase('work');
-      setTimeLeft(5 * 60);
-    } else {
-      setCurrentPhase('idle');
-    }
-  };
+        if (sessionCount === 0) {
+          setShowBreakSuggestion(true);
+        } else {
+          setShowTaskCompleteDialog(true);
+        }
+      };
 
-  const reset = () => {
-    setCurrentPhase('idle');
-    setTimeLeft(0);
-    setCurrentWorkDuration(5);
-    setSessionCount(0);
-    setTotalWorkTime(0);
-    setReasonHistory([]);
-    setShowReasonDialog(false);
-    setShowContinueDialog(false);
-    setShowBreakSuggestion(false);
-    setShowTaskCompleteDialog(false);
-    setCurrentTaskReason('');
-    setTaskResult('');
-    setIsTimerFinished(false);
-    setWorkStartTime(null);
-    saveData();
-  };
+      const handleBreakSuggestion = (action) => {
+        setShowBreakSuggestion(false);
+        if (action === 'retry') {
+          setCurrentPhase('work');
+          setTimeLeft(5 * 60);
+        } else {
+          setCurrentPhase('idle');
+        }
+      };
 
-  const getPhaseDisplay = () => {
-    switch(currentPhase) {
-      case 'work':
-        return `作業中 (${currentWorkDuration}分)`;
-      case 'continue-check':
-        return '継続確認';
-      case 'completed':
-        return 'セッション完了！';
-      default:
-        return '待機中';
-    }
-  };
+      const reset = () => {
+        setCurrentPhase('idle');
+        setTimeLeft(0);
+        setCurrentWorkDuration(5);
+        setSessionCount(0);
+        setTotalWorkTime(0);
+        setReasonHistory([]);
+        setShowReasonDialog(false);
+        setShowContinueDialog(false);
+        setShowBreakSuggestion(false);
+        setShowTaskCompleteDialog(false);
+        setCurrentTaskReason('');
+        setTaskResult('');
+        setIsTimerFinished(false);
+        setWorkStartTime(null);
+        saveData();
+      };
 
-  return React.createElement('div', {
-    className: `min-h-screen bg-gray-50 py-8 px-4`
-  }, 
-    React.createElement('div', {
-      className: `max-w-md mx-auto p-6 rounded-lg shadow-lg transition-all duration-500 ${
-        isTimerFinished ? 'bg-green-100 border-4 border-green-400 animate-pulse' : 'bg-white'
-      }`
-    },
-      React.createElement('h1', {
-        className: 'text-2xl font-bold text-gray-800 mb-6 text-center'
-      }, '適応型ポモドーロタイマー'),
-      
-      React.createElement('div', {
-        className: 'text-center mb-6'
-      },
-        React.createElement('div', {
-          className: 'text-lg font-medium text-gray-600 mb-2'
-        }, getPhaseDisplay()),
-        React.createElement('div', {
-          className: 'text-4xl font-mono font-bold text-gray-800'
-        }, formatTime(timeLeft)),
-        
-        currentTaskReason && currentPhase === 'work' && React.createElement('div', {
-          className: 'mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg'
-        },
-          React.createElement('div', {
-            className: 'text-sm text-gray-600 mb-1'
-          }, '現在のタスク:'),
-          React.createElement('div', {
-            className: 'text-sm font-medium text-gray-800'
-          }, currentTaskReason)
-        )
-      ),
+      const getPhaseDisplay = () => {
+        if (isBreakTime) {
+          return '休憩中 (5分)';
+        }
 
-      // レベルと経験値表示
-      React.createElement('div', {
-        className: 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg'
-      },
-        React.createElement('div', {
-          className: 'flex justify-between items-center mb-2'
-        },
-          React.createElement('span', {
-            className: 'text-sm font-medium text-blue-800'
-          }, `Lv.${level}`),
-          React.createElement('span', {
-            className: 'text-sm text-blue-600'
-          }, `${totalExp % 100}/100 EXP`)
-        ),
-        React.createElement('div', {
-          className: 'w-full bg-blue-200 rounded-full h-2'
-        },
-          React.createElement('div', {
-            className: 'bg-blue-600 h-2 rounded-full transition-all duration-300',
-            style: { width: `${(totalExp % 100)}%` }
-          })
-        ),
-        React.createElement('div', {
-         className: 'text-xs text-blue-600 mt-1'
-        }, `累計作業時間: ${totalWorkTime}分 | 総経験値: ${totalExp}`)
-     ),
+        switch (currentPhase) {
+          case 'work':
+            return `作業中 (${currentWorkDuration}分)`;
+          case 'continue-check':
+            return '継続確認';
+          case 'completed':
+            return 'セッション完了！';
+          default:
+            return '待機中';
+        }
+      };
 
-        // ペット表示エリア
-React.createElement('div', {
-  className: 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg'
-},
-  React.createElement('div', {
-    className: 'text-center mb-2'
-  },
-    React.createElement('div', {
-      className: 'text-4xl mb-1'
-    }, petType === 'egg' ? '🥚' : petType === 'cat' ? '🐱' : '🐉'),
-    React.createElement('div', {
-      className: 'text-sm font-medium text-green-800'
-    }, `ペットLv.${petLevel}`)
-  ),
-  React.createElement('div', {
-  className: 'text-xs text-green-600 text-center'
-}, `🔥${fireFood} 💧${waterFood} 🌿${woodFood}`)
-),
-
-      React.createElement('div', {
-        className: 'mb-6'
-      },
-        React.createElement('div', {
-          className: 'text-sm text-gray-600 mb-2'
-        }, `セッション: ${sessionCount + 1}/6`),
-        React.createElement('div', {
-          className: 'w-full bg-gray-200 rounded-full h-2'
-        },
-          React.createElement('div', {
-            className: 'bg-green-600 h-2 rounded-full transition-all duration-300',
-            style: { width: `${((sessionCount + 1) / 6) * 100}%` }
-          })
-        )
-      ),
-
-      React.createElement('div', {
-        className: 'space-y-4'
-      },
-        currentPhase === 'work' && React.createElement('button', {
-          onClick: handleEarlyComplete,
-          className: 'w-full py-3 px-4 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors mb-4'
-        }, 'タスク終了'),
-
-        currentPhase === 'idle' && React.createElement('div', {
-  className: 'space-y-2'
-        },
-        
-        React.createElement('button', {
-            onClick: startWork,
-            className: 'w-full py-3 px-4 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors'
-        }, '嫌だなボタン'),
-  
-        React.createElement('button', {
-            onClick: startBreathing,
-            className: 'w-full py-3 px-4 bg-gray-400 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors'
-        }, '何のやる気も出ない')
-        ), 
-
-        React.createElement('button', {
-            onClick: spawnRandomBoss,
-            className: 'w-full py-3 px-4 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors'
-        }, '⚔️ ボス戦に挑戦'),
-
-// 呼吸ガイドモード
-motivationMode === 'breathing' && React.createElement('div', {
-  className: 'fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 z-50'
-},
-  React.createElement('div', {
-    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
-  },
-    React.createElement('h2', {
-      className: 'text-2xl font-bold text-gray-800 mb-8'
-    }, '呼吸ガイド'),
-    
-    React.createElement('div', {
-      className: 'flex flex-col items-center mb-8'
-    },
-      React.createElement('div', {
-        className: `${getBreathingCircleSize()} bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full transition-all duration-[4000ms] ease-in-out flex items-center justify-center mb-6`
-      },
-        React.createElement('span', {
-          className: 'text-white font-semibold text-lg'
-        }, breathingCycle + 1)
-      ),
-      
-      React.createElement('p', {
-        className: 'text-xl font-medium text-gray-700 mb-4'
-      }, getBreathingText()),
-      
-      React.createElement('p', {
-        className: 'text-sm text-gray-500'
-      }, `サイクル: ${breathingCycle + 1}/5`)
-    ),
-
-       React.createElement('div', {
-      className: 'space-y-3'
-    },
-      React.createElement('button', {
-        onClick: () => setMotivationMode('task-input'),
-        className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition-colors'
-      }, '深呼吸をスキップ'),
-  
-      React.createElement('button', {
-        onClick: resetMotivationMode,
-        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded transition-colors'
-      }, 'キャンセル'),
-    ) 
-  )
-),
-
-// タスク入力モード
-motivationMode === 'task-input' && React.createElement('div', {
-  className: 'fixed inset-0 bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4 z-50'
-},
-  React.createElement('div', {
-    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full'
-  },
-    React.createElement('h2', {
-      className: 'text-2xl font-bold text-gray-800 mb-6 text-center'
-    }, '小さな一歩から'),
-    
-    React.createElement('p', {
-      className: 'text-gray-600 mb-6 text-center'
-    }, '目の前にあるタスクを1つだけ入力してください'),
-    
-    React.createElement('input', {
-      type: 'text',
-      value: passiveTask,
-      onChange: (e) => setPassiveTask(e.target.value),
-      placeholder: '例: メールを1通読む',
-      className: 'w-full p-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-green-500'
-    }),
-    
-    showPassiveTaskSubmit ? React.createElement('div', {
-      className: 'space-y-4'
-    },
-      React.createElement('div', {
-        className: 'p-4 bg-yellow-50 border border-yellow-200 rounded-lg'
-      },
-        React.createElement('p', {
-          className: 'text-sm text-gray-700 mb-2'
-        }, `タスク「${passiveTask}」を5分だけやってみませんか？`),
-        React.createElement('p', {
-          className: 'text-xs text-gray-500'
-        }, 'まずは小さく始めて、できたら続けていきましょう。')
-      ),
-      React.createElement('div', {
-        className: 'space-y-3'
-      },
-        React.createElement('button', {
-          onClick: handlePassiveTaskStart,
-          className: 'w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-        }, 'はい、5分だけやってみます'),
-        
-        React.createElement('button', {
-          onClick: handleWalkSuggestion,
-          className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-        }, 'いいえ、少し歩いてから考えます'),
-
-        React.createElement('button', {
-          onClick: handleWorkoutSuggestion,
-          className: 'w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-        }, 'いいえ、筋トレしてきます'),
-      )
-    ) : React.createElement('div', {
-      className: 'space-y-3'
-    },
-      React.createElement('button', {
-        onClick: handlePassiveTaskSubmit,
-        disabled: !passiveTask.trim(),
-        className: 'w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, 'このタスクで5分やってみる'),
-      
-      React.createElement('button', {
-        onClick: resetMotivationMode,
-        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, 'キャンセル')
-    )
-  )
-),
-
-// 散歩提案モード
-motivationMode === 'walk-suggestion' && React.createElement('div', {
-  className: 'fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-4 z-50'
-},
-  React.createElement('div', {
-    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
-  },
-    React.createElement('h2', {
-      className: 'text-2xl font-bold text-gray-800 mb-6'
-    }, '少し歩いてみませんか？'),
-    
-    React.createElement('p', {
-      className: 'text-gray-600 mb-8'
-    }, '5-10分程度、外の空気を吸ってリフレッシュしてください。戻ってきたら、また一緒に考えましょう。'),
-    
-    React.createElement('div', {
-      className: 'space-y-3'
-    },
-      React.createElement('button', {
-        onClick: handleReturnFromWalk,
-        className: 'w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, '戻ってきました'),
-      
-      React.createElement('button', {
-        onClick: resetMotivationMode,
-        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, 'やっぱりキャンセル')
-    )
-  )
-),
-// 筋トレ提案モード
-motivationMode === 'workout-suggestion' && React.createElement('div', {
-  className: 'fixed inset-0 bg-gradient-to-br from-purple-50 to-violet-100 flex items-center justify-center p-4 z-50'
-},
-  React.createElement('div', {
-    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
-  },
-    React.createElement('h2', {
-      className: 'text-2xl font-bold text-gray-800 mb-6'
-    }, '軽く体を動かしませんか？'),
-    
-    React.createElement('p', {
-      className: 'text-gray-600 mb-8'
-    }, '10-15分程度、腕立て伏せやスクワットなど軽い運動をして血流を良くしましょう。体を動かすと頭もスッキリします。'),
-    
-    React.createElement('div', {
-      className: 'space-y-3'
-    },
-      React.createElement('button', {
-        onClick: handleReturnFromWorkout,
-        className: 'w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, '筋トレ完了！'),
-      
-      React.createElement('button', {
-        onClick: resetMotivationMode,
-        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, 'やっぱりキャンセル')
-    )
-  )
-),
-
-// ボス予告画面
-battlePhase === 'preview' && currentBoss && React.createElement('div', {
-  className: 'fixed inset-0 bg-gradient-to-br from-red-50 to-purple-100 flex items-center justify-center p-4 z-50'
-},
-  React.createElement('div', {
-    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
-  },
-    React.createElement('h2', {
-      className: 'text-2xl font-bold text-gray-800 mb-6'
-    }, '⚔️ ボス出現！'),
-    
-    React.createElement('div', {
-      className: 'mb-6'
-    },
-      React.createElement('div', {
-        className: 'text-6xl mb-4'
-      }, currentBoss.emoji),
-      
-      React.createElement('h3', {
-        className: 'text-xl font-bold text-gray-800 mb-2'
-      }, currentBoss.name),
-      
-      React.createElement('p', {
-        className: 'text-gray-600 mb-4'
-      }, currentBoss.description),
-      
-      React.createElement('div', {
-        className: 'bg-red-50 border border-red-200 rounded-lg p-4'
-      },
-        React.createElement('div', {
-          className: 'text-sm text-gray-700 mb-2'
-        }, `属性: ${currentBoss.attribute === 'fire' ? '🔥 火' : currentBoss.attribute === 'water' ? '💧 水' : '🌿 木'}`),
-        React.createElement('div', {
-          className: 'text-sm text-gray-700 mb-2'
-        }, `HP: ${currentBoss.hp} / 攻撃力: ${currentBoss.attack}`),
-        React.createElement('div', {
-          className: 'text-sm font-medium text-red-600'
-        }, `弱点: ${getEffectiveAttribute(currentBoss.attribute) === 'fire' ? '🔥 火' : getEffectiveAttribute(currentBoss.attribute) === 'water' ? '💧 水' : '🌿 木'}エサで有利！`)
-      )
-    ),
-    
-    React.createElement('div', {
-      className: 'mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg'
-    },
-      React.createElement('h4', {
-        className: 'font-medium text-gray-800 mb-2'
-      }, '現在の戦力'),
-      React.createElement('div', {
-        className: 'text-sm text-gray-600'
-      }, `有効エサ(${getEffectiveAttribute(currentBoss.attribute) === 'fire' ? '🔥' : getEffectiveAttribute(currentBoss.attribute) === 'water' ? '💧' : '🌿'}): ${getFoodCount(getEffectiveAttribute(currentBoss.attribute))}個`),
-      React.createElement('div', {
-        className: 'text-sm text-gray-600'
-      }, `装備防御力: ${playerEquipment}`)
-    ),
-    
-    React.createElement('div', {
-      className: 'space-y-3'
-    },
-      React.createElement('button', {
-        onClick: () => setBattlePhase('preparation'),
-        className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, '戦闘準備に進む'),
-      
-      React.createElement('button', {
-        onClick: () => setBattlePhase('none'),
-        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, '逃げる')
-    )
-  )
-),
-
-// 戦闘準備画面
-battlePhase === 'preparation' && currentBoss && React.createElement('div', {
-  className: 'fixed inset-0 bg-gradient-to-br from-blue-50 to-green-100 flex items-center justify-center p-4 z-50'
-},
-  React.createElement('div', {
-    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full'
-  },
-    React.createElement('h2', {
-      className: 'text-2xl font-bold text-gray-800 mb-6 text-center'
-    }, '⚔️ 戦闘準備'),
-    
-    // プレイヤー戦力表示
-    (() => {
-      const playerPower = calculatePlayerPower(currentBoss);
-      const battleSim = simulateBattle(playerPower, currentBoss);
-      
       return React.createElement('div', {
-        className: 'space-y-4'
+        className: `min-h-screen bg-gray-50 py-8 px-4`
       },
         React.createElement('div', {
-          className: 'p-4 bg-blue-50 border border-blue-200 rounded-lg'
+          className: `max-w-md mx-auto p-6 rounded-lg shadow-lg transition-all duration-500 ${isTimerFinished ? 'bg-green-100 border-4 border-green-400 animate-pulse' : 'bg-white'
+            }`
         },
-          React.createElement('h3', {
-            className: 'font-medium text-gray-800 mb-2'
-          }, 'あなたの戦力'),
+          React.createElement('h1', {
+            className: 'text-2xl font-bold text-gray-800 mb-6 text-center'
+          }, '適応型ポモドーロタイマー'),
+
           React.createElement('div', {
-            className: 'text-sm text-gray-600 space-y-1'
-          },
-            React.createElement('div', {}, `HP: ${playerPower.hp}`),
-            React.createElement('div', {}, `攻撃力: ${playerPower.attack}`),
-            React.createElement('div', {}, `防御力: ${playerPower.defense}`)
-          )
-        ),
-        
-        React.createElement('div', {
-          className: `p-4 border rounded-lg ${battleSim.victory ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`
-        },
-          React.createElement('h3', {
-            className: 'font-medium text-gray-800 mb-2'
-          }, '戦闘予測'),
-          React.createElement('div', {
-            className: 'text-sm space-y-1'
+            className: 'text-center mb-6'
           },
             React.createElement('div', {
-              className: battleSim.playerSurvives ? 'text-green-600' : 'text-red-600'
-            }, `生存: ${battleSim.playerSurvives ? '✅' : '❌'} (被ダメージ: ${battleSim.damageReceived})`),
+              className: 'text-lg font-medium text-gray-600 mb-2'
+            }, getPhaseDisplay()),
             React.createElement('div', {
-              className: battleSim.canDefeatBoss ? 'text-green-600' : 'text-red-600'
-            }, `撃破: ${battleSim.canDefeatBoss ? '✅' : '❌'}`),
-            React.createElement('div', {
-              className: `font-medium ${battleSim.victory ? 'text-green-600' : 'text-red-600'}`
-            }, `結果: ${battleSim.victory ? '勝利' : '敗北'}`)
-          )
-        ),
-        
-        React.createElement('div', {
-          className: 'space-y-3'
-        },
-          React.createElement('button', {
-            onClick: () => {
-              setBattleResult(battleSim);
-              setBattlePhase('result');
+              className: 'text-4xl font-mono font-bold text-gray-800'
+            }, formatTime(isBreakTime ? breakTimeLeft : timeLeft)),
+
+            currentTaskReason && currentPhase === 'work' && React.createElement('div', {
+              className: 'mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg'
             },
-            className: 'w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-          }, '戦闘開始！'),
-          
-          React.createElement('button', {
-            onClick: () => setBattlePhase('preview'),
-            className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-          }, '戻る')
-        )
-      );
-    })()
-  )
-),
-
-// 戦闘結果画面
-battlePhase === 'result' && battleResult && React.createElement('div', {
-  className: 'fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-4 z-50'
-},
-  React.createElement('div', {
-    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
-  },
-    React.createElement('h2', {
-      className: 'text-2xl font-bold text-gray-800 mb-6'
-    }, battleResult.victory ? '🎉 勝利！' : '💀 敗北...'),
-    
-    React.createElement('div', {
-      className: 'mb-6'
-    },
-      React.createElement('div', {
-        className: 'text-4xl mb-4'
-      }, battleResult.victory ? '👑' : '💀'),
-      
-      React.createElement('p', {
-        className: 'text-gray-600 mb-4'
-      }, battleResult.victory ? 
-        `${currentBoss.name}を見事に倒しました！` : 
-        `${currentBoss.name}に敗れました...`
-      ),
-      
-      React.createElement('div', {
-        className: 'text-sm text-gray-600 space-y-1'
-      },
-        React.createElement('div', {}, `あなたのHP: ${battleResult.playerPower.hp}`),
-        React.createElement('div', {}, `受けたダメージ: ${battleResult.damageReceived}`),
-        React.createElement('div', {}, `与えたダメージ: ${battleResult.playerPower.attack}`)
-      )
-    ),
-    
-    React.createElement('div', {
-      className: 'space-y-3'
-    },
-      React.createElement('button', {
-        onClick: () => {
-          setBattlePhase('none');
-          setCurrentBoss(null);
-          setBattleResult(null);
-        },
-        className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-      }, '閉じる')
-    )
-  )
-),
-
-        currentPhase === 'completed' && React.createElement('div', {
-          className: 'text-center'
-        },
-          React.createElement('p', {
-            className: 'text-green-600 font-medium mb-4'
-          }, 'お疲れさまでした！約1時間の作業を完了しました。'),
-          React.createElement('button', {
-            onClick: reset,
-            className: 'py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors'
-          }, 'リセット')
-        ),
-
-        reasonHistory.length > 0 && React.createElement('div', {
-          className: 'mt-6'
-        },
-          React.createElement('h3', {
-            className: 'text-lg font-medium text-gray-800 mb-3'
-          }, '記録'),
-          React.createElement('div', {
-            className: 'space-y-2 max-h-40 overflow-y-auto'
-          },
-            reasonHistory.map((entry, index) =>
               React.createElement('div', {
-                key: index,
-                className: 'p-3 bg-gray-50 rounded text-sm border-l-4 border-blue-400'
+                className: 'text-sm text-gray-600 mb-1'
+              }, '現在のタスク:'),
+              React.createElement('div', {
+                className: 'text-sm font-medium text-gray-800'
+              }, currentTaskReason)
+            )
+          ),
+
+          // レベルと経験値表示
+          React.createElement('div', {
+            className: 'mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg'
+          },
+            React.createElement('div', {
+              className: 'flex justify-between items-center mb-2'
+            },
+              React.createElement('span', {
+                className: 'text-sm font-medium text-blue-800'
+              }, `Lv.${level}`),
+              React.createElement('span', {
+                className: 'text-sm text-blue-600'
+              }, `${totalExp % 100}/100 EXP`)
+            ),
+            React.createElement('div', {
+              className: 'w-full bg-blue-200 rounded-full h-2'
+            },
+              React.createElement('div', {
+                className: 'bg-blue-600 h-2 rounded-full transition-all duration-300',
+                style: { width: `${(totalExp % 100)}%` }
+              })
+            ),
+            React.createElement('div', {
+              className: 'text-xs text-blue-600 mt-1'
+            }, `累計作業時間: ${totalWorkTime}分 | 総経験値: ${totalExp}`)
+          ),
+
+          // ペット表示エリア
+          React.createElement('div', {
+            className: 'mb-4 p-3 bg-green-50 border border-green-200 rounded-lg'
+          },
+            React.createElement('div', {
+              className: 'text-center mb-2'
+            },
+              React.createElement('div', {
+                className: 'text-4xl mb-1'
+              }, petType === 'egg' ? '🥚' : petType === 'cat' ? '🐱' : '🐉'),
+              React.createElement('div', {
+                className: 'text-sm font-medium text-green-800'
+              }, `ペットLv.${petLevel}`)
+            ),
+            React.createElement('div', {
+              className: 'text-xs text-green-600 text-center'
+            }, `🔥${fireFood} 💧${waterFood} 🌿${woodFood}`)
+          ),
+
+          React.createElement('div', {
+            className: 'mb-6'
+          },
+            React.createElement('div', {
+              className: 'text-sm text-gray-600 mb-2'
+            }, `セッション: ${sessionCount + 1}/6`),
+            React.createElement('div', {
+              className: 'w-full bg-gray-200 rounded-full h-2'
+            },
+              React.createElement('div', {
+                className: 'bg-green-600 h-2 rounded-full transition-all duration-300',
+                style: { width: `${((sessionCount + 1) / 6) * 100}%` }
+              })
+            )
+          ),
+
+          React.createElement('div', {
+            className: 'space-y-4'
+          },
+            currentPhase === 'work' && React.createElement('button', {
+              onClick: handleEarlyComplete,
+              className: 'w-full py-3 px-4 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors mb-4'
+            }, 'タスク終了'),
+
+            currentPhase === 'idle' && React.createElement('div', {
+              className: 'space-y-2'
+            },
+
+              React.createElement('button', {
+                onClick: startWork,
+                className: 'w-full py-3 px-4 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors'
+              }, '嫌だなボタン'),
+
+              React.createElement('button', {
+                onClick: startBreathing,
+                className: 'w-full py-3 px-4 bg-gray-400 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors'
+              }, '何のやる気も出ない')
+            ),
+
+            React.createElement('button', {
+              onClick: spawnRandomBoss,
+              className: 'w-full py-3 px-4 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors'
+            }, '⚔️ ボス戦に挑戦'),
+
+            // 呼吸ガイドモード
+            motivationMode === 'breathing' && React.createElement('div', {
+              className: 'fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 z-50'
+            },
+              React.createElement('div', {
+                className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+              },
+                React.createElement('h2', {
+                  className: 'text-2xl font-bold text-gray-800 mb-8'
+                }, '呼吸ガイド'),
+
+                React.createElement('div', {
+                  className: 'flex flex-col items-center mb-8'
+                },
+                  React.createElement('div', {
+                    className: `${getBreathingCircleSize()} bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full transition-all duration-[4000ms] ease-in-out flex items-center justify-center mb-6`
+                  },
+                    React.createElement('span', {
+                      className: 'text-white font-semibold text-lg'
+                    }, breathingCycle + 1)
+                  ),
+
+                  React.createElement('p', {
+                    className: 'text-xl font-medium text-gray-700 mb-4'
+                  }, getBreathingText()),
+
+                  React.createElement('p', {
+                    className: 'text-sm text-gray-500'
+                  }, `サイクル: ${breathingCycle + 1}/5`)
+                ),
+
+                React.createElement('div', {
+                  className: 'space-y-3'
+                },
+                  React.createElement('button', {
+                    onClick: () => setMotivationMode('task-input'),
+                    className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition-colors'
+                  }, '深呼吸をスキップ'),
+
+                  React.createElement('button', {
+                    onClick: resetMotivationMode,
+                    className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded transition-colors'
+                  }, 'キャンセル'),
+                )
+              )
+            ),
+
+            // タスク入力モード
+            motivationMode === 'task-input' && React.createElement('div', {
+              className: 'fixed inset-0 bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4 z-50'
+            },
+              React.createElement('div', {
+                className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full'
+              },
+                React.createElement('h2', {
+                  className: 'text-2xl font-bold text-gray-800 mb-6 text-center'
+                }, '小さな一歩から'),
+
+                React.createElement('p', {
+                  className: 'text-gray-600 mb-6 text-center'
+                }, '目の前にあるタスクを1つだけ入力してください'),
+
+                React.createElement('input', {
+                  type: 'text',
+                  value: passiveTask,
+                  onChange: (e) => setPassiveTask(e.target.value),
+                  placeholder: '例: メールを1通読む',
+                  className: 'w-full p-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-green-500'
+                }),
+
+                showPassiveTaskSubmit ? React.createElement('div', {
+                  className: 'space-y-4'
+                },
+                  React.createElement('div', {
+                    className: 'p-4 bg-yellow-50 border border-yellow-200 rounded-lg'
+                  },
+                    React.createElement('p', {
+                      className: 'text-sm text-gray-700 mb-2'
+                    }, `タスク「${passiveTask}」を5分だけやってみませんか？`),
+                    React.createElement('p', {
+                      className: 'text-xs text-gray-500'
+                    }, 'まずは小さく始めて、できたら続けていきましょう。')
+                  ),
+                  React.createElement('div', {
+                    className: 'space-y-3'
+                  },
+                    React.createElement('button', {
+                      onClick: handlePassiveTaskStart,
+                      className: 'w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                    }, 'はい、5分だけやってみます'),
+
+                    React.createElement('button', {
+                      onClick: handleWalkSuggestion,
+                      className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                    }, 'いいえ、少し歩いてから考えます'),
+
+                    React.createElement('button', {
+                      onClick: handleWorkoutSuggestion,
+                      className: 'w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                    }, 'いいえ、筋トレしてきます'),
+                  )
+                ) : React.createElement('div', {
+                  className: 'space-y-3'
+                },
+                  React.createElement('button', {
+                    onClick: handlePassiveTaskSubmit,
+                    disabled: !passiveTask.trim(),
+                    className: 'w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, 'このタスクで5分やってみる'),
+
+                  React.createElement('button', {
+                    onClick: resetMotivationMode,
+                    className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, 'キャンセル')
+                )
+              )
+            ),
+
+            // 散歩提案モード
+            motivationMode === 'walk-suggestion' && React.createElement('div', {
+              className: 'fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-4 z-50'
+            },
+              React.createElement('div', {
+                className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+              },
+                React.createElement('h2', {
+                  className: 'text-2xl font-bold text-gray-800 mb-6'
+                }, '少し歩いてみませんか？'),
+
+                React.createElement('p', {
+                  className: 'text-gray-600 mb-8'
+                }, '5-10分程度、外の空気を吸ってリフレッシュしてください。戻ってきたら、また一緒に考えましょう。'),
+
+                React.createElement('div', {
+                  className: 'space-y-3'
+                },
+                  React.createElement('button', {
+                    onClick: handleReturnFromWalk,
+                    className: 'w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, '戻ってきました'),
+
+                  React.createElement('button', {
+                    onClick: resetMotivationMode,
+                    className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, 'やっぱりキャンセル')
+                )
+              )
+            ),
+            // 筋トレ提案モード
+            motivationMode === 'workout-suggestion' && React.createElement('div', {
+              className: 'fixed inset-0 bg-gradient-to-br from-purple-50 to-violet-100 flex items-center justify-center p-4 z-50'
+            },
+              React.createElement('div', {
+                className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+              },
+                React.createElement('h2', {
+                  className: 'text-2xl font-bold text-gray-800 mb-6'
+                }, '軽く体を動かしませんか？'),
+
+                React.createElement('p', {
+                  className: 'text-gray-600 mb-8'
+                }, '10-15分程度、腕立て伏せやスクワットなど軽い運動をして血流を良くしましょう。体を動かすと頭もスッキリします。'),
+
+                React.createElement('div', {
+                  className: 'space-y-3'
+                },
+                  React.createElement('button', {
+                    onClick: handleReturnFromWorkout,
+                    className: 'w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, '筋トレ完了！'),
+
+                  React.createElement('button', {
+                    onClick: resetMotivationMode,
+                    className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, 'やっぱりキャンセル')
+                )
+              )
+            ),
+
+            // ボス予告画面
+            battlePhase === 'preview' && currentBoss && React.createElement('div', {
+              className: 'fixed inset-0 bg-gradient-to-br from-red-50 to-purple-100 flex items-center justify-center p-4 z-50'
+            },
+              React.createElement('div', {
+                className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+              },
+                React.createElement('h2', {
+                  className: 'text-2xl font-bold text-gray-800 mb-6'
+                }, '⚔️ ボス出現！'),
+
+                React.createElement('div', {
+                  className: 'mb-6'
+                },
+                  React.createElement('div', {
+                    className: 'text-6xl mb-4'
+                  }, currentBoss.emoji),
+
+                  React.createElement('h3', {
+                    className: 'text-xl font-bold text-gray-800 mb-2'
+                  }, currentBoss.name),
+
+                  React.createElement('p', {
+                    className: 'text-gray-600 mb-4'
+                  }, currentBoss.description),
+
+                  React.createElement('div', {
+                    className: 'bg-red-50 border border-red-200 rounded-lg p-4'
+                  },
+                    React.createElement('div', {
+                      className: 'text-sm text-gray-700 mb-2'
+                    }, `属性: ${currentBoss.attribute === 'fire' ? '🔥 火' : currentBoss.attribute === 'water' ? '💧 水' : '🌿 木'}`),
+                    React.createElement('div', {
+                      className: 'text-sm text-gray-700 mb-2'
+                    }, `HP: ${currentBoss.hp} / 攻撃力: ${currentBoss.attack}`),
+                    React.createElement('div', {
+                      className: 'text-sm font-medium text-red-600'
+                    }, `弱点: ${getEffectiveAttribute(currentBoss.attribute) === 'fire' ? '🔥 火' : getEffectiveAttribute(currentBoss.attribute) === 'water' ? '💧 水' : '🌿 木'}エサで有利！`)
+                  )
+                ),
+
+                React.createElement('div', {
+                  className: 'mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg'
+                },
+                  React.createElement('h4', {
+                    className: 'font-medium text-gray-800 mb-2'
+                  }, '現在の戦力'),
+                  React.createElement('div', {
+                    className: 'text-sm text-gray-600'
+                  }, `有効エサ(${getEffectiveAttribute(currentBoss.attribute) === 'fire' ? '🔥' : getEffectiveAttribute(currentBoss.attribute) === 'water' ? '💧' : '🌿'}): ${getFoodCount(getEffectiveAttribute(currentBoss.attribute))}個`),
+                  React.createElement('div', {
+                    className: 'text-sm text-gray-600'
+                  }, `装備防御力: ${playerEquipment}`)
+                ),
+
+                React.createElement('div', {
+                  className: 'space-y-3'
+                },
+                  React.createElement('button', {
+                    onClick: () => setBattlePhase('preparation'),
+                    className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, '戦闘準備に進む'),
+
+                  React.createElement('button', {
+                    onClick: () => setBattlePhase('none'),
+                    className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, '逃げる')
+                )
+              )
+            ),
+
+            // 戦闘準備画面
+            battlePhase === 'preparation' && currentBoss && React.createElement('div', {
+              className: 'fixed inset-0 bg-gradient-to-br from-blue-50 to-green-100 flex items-center justify-center p-4 z-50'
+            },
+              React.createElement('div', {
+                className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full'
+              },
+                React.createElement('h2', {
+                  className: 'text-2xl font-bold text-gray-800 mb-6 text-center'
+                }, '⚔️ 戦闘準備'),
+
+                // プレイヤー戦力表示
+                (() => {
+                  const playerPower = calculatePlayerPower(currentBoss);
+                  const battleSim = simulateBattle(playerPower, currentBoss);
+
+                  return React.createElement('div', {
+                    className: 'space-y-4'
+                  },
+                    React.createElement('div', {
+                      className: 'p-4 bg-blue-50 border border-blue-200 rounded-lg'
+                    },
+                      React.createElement('h3', {
+                        className: 'font-medium text-gray-800 mb-2'
+                      }, 'あなたの戦力'),
+                      React.createElement('div', {
+                        className: 'text-sm text-gray-600 space-y-1'
+                      },
+                        React.createElement('div', {}, `HP: ${playerPower.hp}`),
+                        React.createElement('div', {}, `攻撃力: ${playerPower.attack}`),
+                        React.createElement('div', {}, `防御力: ${playerPower.defense}`)
+                      )
+                    ),
+
+                    React.createElement('div', {
+                      className: `p-4 border rounded-lg ${battleSim.victory ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`
+                    },
+                      React.createElement('h3', {
+                        className: 'font-medium text-gray-800 mb-2'
+                      }, '戦闘予測'),
+                      React.createElement('div', {
+                        className: 'text-sm space-y-1'
+                      },
+                        React.createElement('div', {
+                          className: battleSim.playerSurvives ? 'text-green-600' : 'text-red-600'
+                        }, `生存: ${battleSim.playerSurvives ? '✅' : '❌'} (被ダメージ: ${battleSim.damageReceived})`),
+                        React.createElement('div', {
+                          className: battleSim.canDefeatBoss ? 'text-green-600' : 'text-red-600'
+                        }, `撃破: ${battleSim.canDefeatBoss ? '✅' : '❌'}`),
+                        React.createElement('div', {
+                          className: `font-medium ${battleSim.victory ? 'text-green-600' : 'text-red-600'}`
+                        }, `結果: ${battleSim.victory ? '勝利' : '敗北'}`)
+                      )
+                    ),
+
+                    React.createElement('div', {
+                      className: 'space-y-3'
+                    },
+                      React.createElement('button', {
+                        onClick: () => {
+                          setBattleResult(battleSim);
+                          setBattlePhase('result');
+                        },
+                        className: 'w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                      }, '戦闘開始！'),
+
+                      React.createElement('button', {
+                        onClick: () => setBattlePhase('preview'),
+                        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                      }, '戻る')
+                    )
+                  );
+                })()
+              )
+            ),
+
+            // 戦闘結果画面
+            battlePhase === 'result' && battleResult && React.createElement('div', {
+              className: 'fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-4 z-50'
+            },
+              React.createElement('div', {
+                className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+              },
+                React.createElement('h2', {
+                  className: 'text-2xl font-bold text-gray-800 mb-6'
+                }, battleResult.victory ? '🎉 勝利！' : '💀 敗北...'),
+
+                React.createElement('div', {
+                  className: 'mb-6'
+                },
+                  React.createElement('div', {
+                    className: 'text-4xl mb-4'
+                  }, battleResult.victory ? '👑' : '💀'),
+
+                  React.createElement('p', {
+                    className: 'text-gray-600 mb-4'
+                  }, battleResult.victory ?
+                    `${currentBoss.name}を見事に倒しました！` :
+                    `${currentBoss.name}に敗れました...`
+                  ),
+
+                  React.createElement('div', {
+                    className: 'text-sm text-gray-600 space-y-1'
+                  },
+                    React.createElement('div', {}, `あなたのHP: ${battleResult.playerPower.hp}`),
+                    React.createElement('div', {}, `受けたダメージ: ${battleResult.damageReceived}`),
+                    React.createElement('div', {}, `与えたダメージ: ${battleResult.playerPower.attack}`)
+                  )
+                ),
+
+                React.createElement('div', {
+                  className: 'space-y-3'
+                },
+                  React.createElement('button', {
+                    onClick: () => {
+                      setBattlePhase('none');
+                      setCurrentBoss(null);
+                      setBattleResult(null);
+                    },
+                    className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+                  }, '閉じる')
+                )
+              )
+            ),
+
+            currentPhase === 'completed' && React.createElement('div', {
+              className: 'text-center'
+            },
+              React.createElement('p', {
+                className: 'text-green-600 font-medium mb-4'
+              }, 'お疲れさまでした！約1時間の作業を完了しました。'),
+              React.createElement('button', {
+                onClick: reset,
+                className: 'py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors'
+              }, 'リセット')
+            ),
+            React.createElement('button', {
+              onClick: () => {
+                if (confirm('セーブデータを完全に削除しますか？')) {
+                  localStorage.removeItem('pomodoroData');
+                  setReasonHistory([]);
+                  setTotalWorkTime(0);
+                  setTotalExp(0);
+                  setLevel(1);
+                  setFireFood(0);
+                  setWaterFood(0);
+                  setWoodFood(0);
+                  setPetLevel(1);
+                  setPlayerEquipment(0);
+                }
+              },
+              className: 'py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors ml-2'
+            }, 'データ削除'),
+
+            reasonHistory.length > 0 && React.createElement('div', {
+              className: 'mt-6'
+            },
+              React.createElement('h3', {
+                className: 'text-lg font-medium text-gray-800 mb-3'
+              }, '記録'),
+              React.createElement('div', {
+                className: 'space-y-2 max-h-40 overflow-y-auto'
+              },
+                reasonHistory.map((entry, index) =>
+                  React.createElement('div', {
+                    key: index,
+                    className: 'p-3 bg-gray-50 rounded text-sm border-l-4 border-blue-400'
+                  },
+                    React.createElement('div', {
+                      className: 'font-medium text-gray-800 mb-1'
+                    }, entry.datetime),
+                    React.createElement('div', {
+                      className: 'text-gray-600 mb-1'
+                    },
+                      React.createElement('span', {
+                        className: 'font-medium'
+                      }, '課題: '),
+                      entry.reason
+                    ),
+                    React.createElement('div', {
+                      className: 'text-gray-600 mb-1'
+                    },
+                      React.createElement('span', {
+                        className: 'font-medium'
+                      }, '結果: '),
+                      entry.result
+                    ),
+                    React.createElement('div', {
+                      className: 'flex justify-between text-xs text-gray-500'
+                    },
+                      React.createElement('span', {}, `予定: ${entry.plannedDuration}分 / 実際: ${entry.actualDuration}分`),
+                      React.createElement('span', {
+                        className: 'text-blue-600 font-medium'
+                      }, `+${entry.expGained} EXP`)
+                    )
+                  )
+                )
+              )
+            )
+          ),
+
+          // 理由入力ダイアログ
+          showReasonDialog && React.createElement('div', {
+            className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
+          },
+            React.createElement('div', {
+              className: 'bg-white p-6 rounded-lg max-w-sm w-full'
+            },
+              React.createElement('h3', {
+                className: 'text-lg font-medium mb-4'
+              }, '何が嫌でしたか？'),
+              React.createElement('textarea', {
+                value: reason,
+                onChange: (e) => setReason(e.target.value),
+                className: 'w-full p-3 border border-gray-300 rounded-lg mb-4 resize-none',
+                rows: 3,
+                placeholder: '例：レポートを書かなければならない...'
+              }),
+              React.createElement('div', {
+                className: 'flex space-x-2'
+              },
+                React.createElement('button', {
+                  onClick: handleReasonSubmit,
+                  className: 'flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors'
+                }, '開始')
+              ),
+              React.createElement('div', {
+                className: 'mt-2 text-xs text-gray-500 text-center'
+              }, `タイマーは既に開始されています (${currentWorkDuration}分)`)
+            )
+          ),
+
+          // 継続確認ダイアログ
+          showContinueDialog && React.createElement('div', {
+            className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
+          },
+            React.createElement('div', {
+              className: 'bg-white p-6 rounded-lg max-w-sm w-full text-center'
+            },
+              React.createElement('h3', {
+                className: 'text-lg font-medium mb-4'
+              }, `${currentWorkDuration}分お疲れさまでした！`),
+              React.createElement('div', {
+                className: 'mb-6'
+              },
+                React.createElement('p', {
+                  className: 'text-sm text-gray-600 mb-2'
+                }, `次は${sessionCount + 1 < workDurations.length ? workDurations[sessionCount + 1] : 15}分の作業になります`),
+                React.createElement('p', {
+                  className: 'text-sm text-gray-600'
+                }, '続けられそうですか？（休憩なしで即座に開始）')
+              ),
+              React.createElement('div', {
+                className: 'flex space-x-2'
+              },
+                React.createElement('button', {
+                  onClick: handleContinue,
+                  className: 'flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors'
+                }, '続ける'),
+                React.createElement('button', {
+                  onClick: () => {
+                    setShowContinueDialog(false);
+                    setIsTimerFinished(false);
+                    setSessionCount(prev => prev + 1);
+                    // セッション完了でエサ獲得
+                    const foodType = getRandomFood();
+                    if (foodType === 'fire') setFireFood(prev => prev + 1);
+                    if (foodType === 'water') setWaterFood(prev => prev + 1);
+                    if (foodType === 'wood') setWoodFood(prev => prev + 1);
+                    setIsBreakTime(true);
+                    setBreakTimeLeft(5 * 60); // 5分休憩
+                  },
+
+                  className: 'flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors'
+                }, '5分休憩'),
+                React.createElement('button', {
+                  onClick: handleStop,
+                  className: 'flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors'
+                }, '終了')
+              )
+            )
+          ),
+
+          // タスク分解提案ダイアログ
+          showBreakSuggestion && React.createElement('div', {
+            className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
+          },
+            React.createElement('div', {
+              className: 'bg-white p-6 rounded-lg max-w-sm w-full'
+            },
+              React.createElement('h3', {
+                className: 'text-lg font-medium mb-4'
+              }, 'タスクを分解してみましょう'),
+              React.createElement('div', {
+                className: 'text-sm text-gray-600 mb-4'
+              },
+                React.createElement('p', {
+                  className: 'mb-2'
+                }, '5分も集中できなかった場合は、タスクをより小さく分けると良いかもしれません：'),
+                React.createElement('ul', {
+                  className: 'list-disc list-inside space-y-1'
+                },
+                  React.createElement('li', {}, '資料を1ページだけ読む'),
+                  React.createElement('li', {}, 'ファイルを開いてタイトルだけ書く'),
+                  React.createElement('li', {}, '関連する道具や資料を机に並べる'),
+                  React.createElement('li', {}, '5行だけメモを書く'),
+                  React.createElement('li', {}, '1つの段落だけ読む')
+                )
+              ),
+              React.createElement('div', {
+                className: 'flex space-x-2'
+              },
+                React.createElement('button', {
+                  onClick: () => handleBreakSuggestion('retry'),
+                  className: 'flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm'
+                }, 'もう一度5分'),
+                React.createElement('button', {
+                  onClick: () => handleBreakSuggestion('stop'),
+                  className: 'flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm'
+                }, '今日は終了')
+              )
+            )
+          ),
+
+          // タスク完了ダイアログ
+          showTaskCompleteDialog && React.createElement('div', {
+            className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
+          },
+            React.createElement('div', {
+              className: 'bg-white p-6 rounded-lg max-w-sm w-full'
+            },
+              React.createElement('h3', {
+                className: 'text-lg font-medium mb-4'
+              }, 'タスク完了！'),
+              React.createElement('div', {
+                className: 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded'
               },
                 React.createElement('div', {
-                  className: 'font-medium text-gray-800 mb-1'
-                }, entry.datetime),
+                  className: 'text-sm text-gray-600 mb-1'
+                }, '取り組んだ課題:'),
                 React.createElement('div', {
-                  className: 'text-gray-600 mb-1'
-                },
-                  React.createElement('span', {
-                    className: 'font-medium'
-                  }, '課題: '),
-                  entry.reason
-                ),
-                React.createElement('div', {
-                  className: 'text-gray-600 mb-1'
-                },
-                  React.createElement('span', {
-                    className: 'font-medium'
-                  }, '結果: '),
-                  entry.result
-                ),
-                React.createElement('div', {
-                  className: 'flex justify-between text-xs text-gray-500'
-                },
-                  React.createElement('span', {}, `予定: ${entry.plannedDuration}分 / 実際: ${entry.actualDuration}分`),
-                  React.createElement('span', {
-                    className: 'text-blue-600 font-medium'
-                  }, `+${entry.expGained} EXP`)
-                )
+                  className: 'text-sm font-medium text-gray-800'
+                }, currentTaskReason)
+              ),
+              React.createElement('div', {
+                className: 'mb-4'
+              },
+                React.createElement('label', {
+                  className: 'block text-sm font-medium text-gray-700 mb-2'
+                }, '実際に何をどこまでやりましたか？'),
+                React.createElement('textarea', {
+                  value: taskResult,
+                  onChange: (e) => setTaskResult(e.target.value),
+                  className: 'w-full p-3 border border-gray-300 rounded-lg resize-none',
+                  rows: 3,
+                  placeholder: '例：7人分の退院サマリを作成完了'
+                })
+              ),
+              React.createElement('div', {
+                className: 'flex space-x-2'
+              },
+                React.createElement('button', {
+                  onClick: handleTaskComplete,
+                  className: 'flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors'
+                }, '記録する')
               )
             )
           )
         )
-      ),
+      );
+    };
 
-      // 理由入力ダイアログ
-      showReasonDialog && React.createElement('div', {
-        className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
-      },
-        React.createElement('div', {
-          className: 'bg-white p-6 rounded-lg max-w-sm w-full'
-        },
-          React.createElement('h3', {
-            className: 'text-lg font-medium mb-4'
-          }, '何が嫌でしたか？'),
-          React.createElement('textarea', {
-            value: reason,
-            onChange: (e) => setReason(e.target.value),
-            className: 'w-full p-3 border border-gray-300 rounded-lg mb-4 resize-none',
-            rows: 3,
-            placeholder: '例：レポートを書かなければならない...'
-          }),
-          React.createElement('div', {
-            className: 'flex space-x-2'
-          },
-            React.createElement('button', {
-              onClick: handleReasonSubmit,
-              className: 'flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors'
-            }, '開始')
-          ),
-          React.createElement('div', {
-            className: 'mt-2 text-xs text-gray-500 text-center'
-          }, `タイマーは既に開始されています (${currentWorkDuration}分)`)
-        )
-      ),
-
-      // 継続確認ダイアログ
-      showContinueDialog && React.createElement('div', {
-        className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
-      },
-        React.createElement('div', {
-          className: 'bg-white p-6 rounded-lg max-w-sm w-full text-center'
-        },
-          React.createElement('h3', {
-            className: 'text-lg font-medium mb-4'
-          }, `${currentWorkDuration}分お疲れさまでした！`),
-          React.createElement('div', {
-            className: 'mb-6'
-          },
-            React.createElement('p', {
-              className: 'text-sm text-gray-600 mb-2'
-            }, `次は${sessionCount + 1 < workDurations.length ? workDurations[sessionCount + 1] : 15}分の作業になります`),
-            React.createElement('p', {
-              className: 'text-sm text-gray-600'
-            }, '続けられそうですか？（休憩なしで即座に開始）')
-          ),
-          React.createElement('div', {
-            className: 'flex space-x-2'
-          },
-            React.createElement('button', {
-              onClick: handleContinue,
-              className: 'flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors'
-            }, '続ける'),
-            React.createElement('button', {
-              onClick: handleStop,
-              className: 'flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors'
-            }, '終了')
-          )
-        )
-      ),
-
-      // タスク分解提案ダイアログ
-      showBreakSuggestion && React.createElement('div', {
-        className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
-      },
-        React.createElement('div', {
-          className: 'bg-white p-6 rounded-lg max-w-sm w-full'
-        },
-          React.createElement('h3', {
-            className: 'text-lg font-medium mb-4'
-          }, 'タスクを分解してみましょう'),
-          React.createElement('div', {
-            className: 'text-sm text-gray-600 mb-4'
-          },
-            React.createElement('p', {
-              className: 'mb-2'
-            }, '5分も集中できなかった場合は、タスクをより小さく分けると良いかもしれません：'),
-            React.createElement('ul', {
-              className: 'list-disc list-inside space-y-1'
-            },
-              React.createElement('li', {}, '資料を1ページだけ読む'),
-              React.createElement('li', {}, 'ファイルを開いてタイトルだけ書く'),
-              React.createElement('li', {}, '関連する道具や資料を机に並べる'),
-              React.createElement('li', {}, '5行だけメモを書く'),
-              React.createElement('li', {}, '1つの段落だけ読む')
-            )
-          ),
-          React.createElement('div', {
-            className: 'flex space-x-2'
-          },
-            React.createElement('button', {
-              onClick: () => handleBreakSuggestion('retry'),
-              className: 'flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm'
-            }, 'もう一度5分'),
-            React.createElement('button', {
-              onClick: () => handleBreakSuggestion('stop'),
-              className: 'flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm'
-            }, '今日は終了')
-          )
-        )
-      ),
-
-      // タスク完了ダイアログ
-      showTaskCompleteDialog && React.createElement('div', {
-        className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'
-      },
-        React.createElement('div', {
-          className: 'bg-white p-6 rounded-lg max-w-sm w-full'
-        },
-          React.createElement('h3', {
-            className: 'text-lg font-medium mb-4'
-          }, 'タスク完了！'),
-          React.createElement('div', {
-            className: 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded'
-          },
-            React.createElement('div', {
-              className: 'text-sm text-gray-600 mb-1'
-            }, '取り組んだ課題:'),
-            React.createElement('div', {
-              className: 'text-sm font-medium text-gray-800'
-            }, currentTaskReason)
-          ),
-          React.createElement('div', {
-            className: 'mb-4'
-          },
-            React.createElement('label', {
-              className: 'block text-sm font-medium text-gray-700 mb-2'
-            }, '実際に何をどこまでやりましたか？'),
-            React.createElement('textarea', {
-              value: taskResult,
-              onChange: (e) => setTaskResult(e.target.value),
-              className: 'w-full p-3 border border-gray-300 rounded-lg resize-none',
-              rows: 3,
-              placeholder: '例：7人分の退院サマリを作成完了'
-            })
-          ),
-          React.createElement('div', {
-            className: 'flex space-x-2'
-          },
-            React.createElement('button', {
-              onClick: handleTaskComplete,
-              className: 'flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors'
-            }, '記録する')
-          )
-        )
-      )
-    )
-  );
-};
-
-ReactDOM.render(React.createElement(AdaptivePomodoro), document.getElementById('root'));
+    ReactDOM.render(React.createElement(AdaptivePomodoro), document.getElementById('root'));
