@@ -125,7 +125,7 @@ const [showWorkoutSuggestion, setShowWorkoutSuggestion] = useState(false);
         clearInterval(breathingIntervalRef.current);
       }
     };
-  }, [motivationMode]);
+  }, [motivationMode, breathingPhase]);
 
   useEffect(() => {
     if (currentPhase === 'work') {
@@ -225,6 +225,14 @@ const getBreathingText = () => {
   if (breathingPhase === 'hold') return '止めて';
   if (breathingPhase === 'exhale') return '息を吐いて';
   return '';
+};
+
+const handleReasonSubmit = () => {
+  if (reason.trim()) {
+    setCurrentTaskReason(reason.trim());
+    setReason('');
+  }
+  setShowReasonDialog(false);
 };
 
 
@@ -495,10 +503,19 @@ motivationMode === 'breathing' && React.createElement('div', {
       }, `サイクル: ${breathingCycle + 1}/5`)
     ),
 
-    React.createElement('button', {
-      onClick: resetMotivationMode,
-      className: 'px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm'
-    }, 'キャンセル')
+       React.createElement('div', {
+      className: 'space-y-3'
+    },
+      React.createElement('button', {
+        onClick: () => setMotivationMode('task-input'),
+        className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition-colors'
+      }, '深呼吸をスキップ'),
+  
+      React.createElement('button', {
+        onClick: resetMotivationMode,
+        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded transition-colors'
+      }, 'キャンセル'),
+    ) 
   )
 ),
 
@@ -549,7 +566,12 @@ motivationMode === 'task-input' && React.createElement('div', {
         React.createElement('button', {
           onClick: handleWalkSuggestion,
           className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
-        }, 'いいえ、少し歩いてから考えます')
+        }, 'いいえ、少し歩いてから考えます'),
+
+        React.createElement('button', {
+          onClick: handleWorkoutSuggestion,
+          className: 'w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+        }, '筋トレしてきます'),
       )
     ) : React.createElement('div', {
       className: 'space-y-3'
