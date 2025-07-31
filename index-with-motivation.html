@@ -54,13 +54,60 @@ const [showWorkoutSuggestion, setShowWorkoutSuggestion] = useState(false);
 
   // ペット関連の状態
   const [petLevel, setPetLevel] = useState(1);
-  const [foodCount, setFoodCount] = useState(0);
+  const [fireFood, setFireFood] = useState(0);    // 🔥火エサ
+  const [waterFood, setWaterFood] = useState(0);  // 💧水エサ
+  const [woodFood, setWoodFood] = useState(0);    // 🌿木エサ
+
   const [petType, setPetType] = useState('egg');
-    
+
+    // 戦闘システム関連の状態
+  const [currentBoss, setCurrentBoss] = useState(null);
+  const [battlePhase, setBattlePhase] = useState('none'); // 'none', 'preview', 'preparation', 'battle', 'result'
+  const [playerEquipment, setPlayerEquipment] = useState(0); // 防御力
+  const [battleResult, setBattleResult] = useState(null);
+
   const intervalRef = useRef(null);
   const breathingIntervalRef = useRef(null);
   const workDurations = [5, 6, 8, 10, 12, 15];
-  
+
+  // ボス情報
+  const bossData = [
+  {
+    id: 'fire_dragon',
+    name: '炎のドラゴン',
+    emoji: '🐉',
+    attribute: 'fire',
+    hp: 100,
+    attack: 80,
+    description: '炎を吐く強力なドラゴン'
+  },
+  {
+    id: 'water_kraken',
+    name: '水のクラーケン',
+    emoji: '🐙',
+    attribute: 'water',
+    hp: 120,
+    attack: 75,
+    description: '深海から現れた巨大な触手の魔物'
+  },
+  {
+    id: 'wood_treant',
+    name: '森の番人',
+    emoji: '🌳',
+    attribute: 'wood',
+    hp: 90,
+    attack: 85,
+    description: '古い森を守る巨大な樹の精霊'
+  }
+];
+
+  // 属性相性オブジェクト
+const attributeEffectiveness = {
+  fire: { strongAgainst: 'wood', weakAgainst: 'water' },
+  water: { strongAgainst: 'fire', weakAgainst: 'wood' },
+  wood: { strongAgainst: 'water', weakAgainst: 'fire' }
+};
+
   // ローカルストレージから復元
   useEffect(() => {
     const saved = localStorage.getItem('pomodoroData');
@@ -157,6 +204,79 @@ const [showWorkoutSuggestion, setShowWorkoutSuggestion] = useState(false);
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  const getRandomFood = () => {
+  const foods = ['fire', 'water', 'wood'];
+  return foods[Math.floor(Math.random() * 3)];
+  };
+
+  // 戦闘システム関数
+  const getFoodCount = (attribute) => {
+    switch(attribute) {
+      case 'fire': return fireFood;
+      case 'water': return waterFood;
+      case 'wood': return woodFood;
+      default: return 0;
+    }
+  };
+  
+  const getEffectiveAttribute = (bossAttribute) => {
+  switch(bossAttribute) {
+    case 'fire': return 'water';    // 火には水が有効
+    case 'water': return 'wood';    // 水には木が有効  
+    case 'wood': return 'fire';     // 木には火が有効
+    default: return 'fire';
+  }
+};
+  
+  const calculatePlayerPower = (boss) => {
+    const effectiveAttribute = getEffectiveAttribute(boss.attribute);
+    const effectiveFoodCount = getFoodCount(effectiveAttribute);
+    
+    return {
+      hp: effectiveFoodCount,
+      attack: Math.floor(effectiveFoodCount * 1.5), // 有利属性ボーナス
+      defense: playerEquipment,
+      effectiveAttribute,
+      effectiveFoodCount
+    };
+  };
+  
+  const simulateBattle = (playerPower, boss) => {
+    // 敵の攻撃でプレイヤーが受けるダメージ
+    const damageReceived = Math.max(0, boss.attack - playerPower.defense);
+    const playerSurvives = playerPower.hp > damageReceived;
+    
+    // プレイヤーが敵を一撃で倒せるか
+    const canDefeatBoss = playerPower.attack >= boss.hp;
+    
+    return {
+      victory: playerSurvives && canDefeatBoss,
+      damageReceived,
+      playerSurvives,
+      canDefeatBoss,
+      playerPower,
+      boss
+    };
+  };
+  
+  const rollEquipmentGacha = (foodCost = 1) => {
+    const baseDefense = Math.floor(Math.random() * 11) + 5; // 5-15
+    const equipmentNames = ['鋼の盾', '魔法の鎧', '竜鱗の盾', '聖なる外套', '古の守護具'];
+    const randomName = equipmentNames[Math.floor(Math.random() * equipmentNames.length)];
+    
+    return {
+      name: `${randomName} +${baseDefense}`,
+      defense: baseDefense,
+      cost: foodCost
+    };
+  };
+  
+  const spawnRandomBoss = () => {
+    const randomBoss = bossData[Math.floor(Math.random() * bossData.length)];
+    setCurrentBoss({...randomBoss});
+    setBattlePhase('preview');
   };
 
   const startWork = () => {
@@ -258,7 +378,10 @@ const handleReasonSubmit = () => {
       return newExp;
     });
       // エサ獲得処理
-　　setFoodCount(prev => prev + 1);
+    const foodType = getRandomFood();
+    if (foodType === 'fire') setFireFood(prev => prev + 1);
+    if (foodType === 'water') setWaterFood(prev => prev + 1);
+    if (foodType === 'wood') setWoodFood(prev => prev + 1);
     
     // 状態をリセット
     setShowTaskCompleteDialog(false);
@@ -285,7 +408,12 @@ const handleReasonSubmit = () => {
     setIsTimerFinished(false);
     setSessionCount(prev => prev + 1);
       // セッション完了でエサ獲得
-    setFoodCount(prev => prev + 1);
+  
+  
+   const foodType = getRandomFood();
+    if (foodType === 'fire') setFireFood(prev => prev + 1);
+    if (foodType === 'water') setWaterFood(prev => prev + 1);
+    if (foodType === 'wood') setWoodFood(prev => prev + 1);
     
     const currentActualTime = Math.ceil((Date.now() - workStartTime) / 60000);
     if (currentActualTime >= 56) {
@@ -429,8 +557,8 @@ React.createElement('div', {
     }, `ペットLv.${petLevel}`)
   ),
   React.createElement('div', {
-    className: 'text-xs text-green-600 text-center'
-  }, `エサ: ${foodCount}個`)
+  className: 'text-xs text-green-600 text-center'
+}, `🔥${fireFood} 💧${waterFood} 🌿${woodFood}`)
 ),
 
       React.createElement('div', {
@@ -471,6 +599,11 @@ React.createElement('div', {
             className: 'w-full py-3 px-4 bg-gray-400 text-white rounded-lg font-medium hover:bg-gray-500 transition-colors'
         }, '何のやる気も出ない')
         ), 
+
+        React.createElement('button', {
+            onClick: spawnRandomBoss,
+            className: 'w-full py-3 px-4 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors'
+        }, '⚔️ ボス戦に挑戦'),
 
 // 呼吸ガイドモード
 motivationMode === 'breathing' && React.createElement('div', {
@@ -647,6 +780,202 @@ motivationMode === 'workout-suggestion' && React.createElement('div', {
         onClick: resetMotivationMode,
         className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
       }, 'やっぱりキャンセル')
+    )
+  )
+),
+
+// ボス予告画面
+battlePhase === 'preview' && currentBoss && React.createElement('div', {
+  className: 'fixed inset-0 bg-gradient-to-br from-red-50 to-purple-100 flex items-center justify-center p-4 z-50'
+},
+  React.createElement('div', {
+    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+  },
+    React.createElement('h2', {
+      className: 'text-2xl font-bold text-gray-800 mb-6'
+    }, '⚔️ ボス出現！'),
+    
+    React.createElement('div', {
+      className: 'mb-6'
+    },
+      React.createElement('div', {
+        className: 'text-6xl mb-4'
+      }, currentBoss.emoji),
+      
+      React.createElement('h3', {
+        className: 'text-xl font-bold text-gray-800 mb-2'
+      }, currentBoss.name),
+      
+      React.createElement('p', {
+        className: 'text-gray-600 mb-4'
+      }, currentBoss.description),
+      
+      React.createElement('div', {
+        className: 'bg-red-50 border border-red-200 rounded-lg p-4'
+      },
+        React.createElement('div', {
+          className: 'text-sm text-gray-700 mb-2'
+        }, `属性: ${currentBoss.attribute === 'fire' ? '🔥 火' : currentBoss.attribute === 'water' ? '💧 水' : '🌿 木'}`),
+        React.createElement('div', {
+          className: 'text-sm text-gray-700 mb-2'
+        }, `HP: ${currentBoss.hp} / 攻撃力: ${currentBoss.attack}`),
+        React.createElement('div', {
+          className: 'text-sm font-medium text-red-600'
+        }, `弱点: ${getEffectiveAttribute(currentBoss.attribute) === 'fire' ? '🔥 火' : getEffectiveAttribute(currentBoss.attribute) === 'water' ? '💧 水' : '🌿 木'}エサで有利！`)
+      )
+    ),
+    
+    React.createElement('div', {
+      className: 'mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg'
+    },
+      React.createElement('h4', {
+        className: 'font-medium text-gray-800 mb-2'
+      }, '現在の戦力'),
+      React.createElement('div', {
+        className: 'text-sm text-gray-600'
+      }, `有効エサ(${getEffectiveAttribute(currentBoss.attribute) === 'fire' ? '🔥' : getEffectiveAttribute(currentBoss.attribute) === 'water' ? '💧' : '🌿'}): ${getFoodCount(getEffectiveAttribute(currentBoss.attribute))}個`),
+      React.createElement('div', {
+        className: 'text-sm text-gray-600'
+      }, `装備防御力: ${playerEquipment}`)
+    ),
+    
+    React.createElement('div', {
+      className: 'space-y-3'
+    },
+      React.createElement('button', {
+        onClick: () => setBattlePhase('preparation'),
+        className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, '戦闘準備に進む'),
+      
+      React.createElement('button', {
+        onClick: () => setBattlePhase('none'),
+        className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, '逃げる')
+    )
+  )
+),
+
+// 戦闘準備画面
+battlePhase === 'preparation' && currentBoss && React.createElement('div', {
+  className: 'fixed inset-0 bg-gradient-to-br from-blue-50 to-green-100 flex items-center justify-center p-4 z-50'
+},
+  React.createElement('div', {
+    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full'
+  },
+    React.createElement('h2', {
+      className: 'text-2xl font-bold text-gray-800 mb-6 text-center'
+    }, '⚔️ 戦闘準備'),
+    
+    // プレイヤー戦力表示
+    (() => {
+      const playerPower = calculatePlayerPower(currentBoss);
+      const battleSim = simulateBattle(playerPower, currentBoss);
+      
+      return React.createElement('div', {
+        className: 'space-y-4'
+      },
+        React.createElement('div', {
+          className: 'p-4 bg-blue-50 border border-blue-200 rounded-lg'
+        },
+          React.createElement('h3', {
+            className: 'font-medium text-gray-800 mb-2'
+          }, 'あなたの戦力'),
+          React.createElement('div', {
+            className: 'text-sm text-gray-600 space-y-1'
+          },
+            React.createElement('div', {}, `HP: ${playerPower.hp}`),
+            React.createElement('div', {}, `攻撃力: ${playerPower.attack}`),
+            React.createElement('div', {}, `防御力: ${playerPower.defense}`)
+          )
+        ),
+        
+        React.createElement('div', {
+          className: `p-4 border rounded-lg ${battleSim.victory ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`
+        },
+          React.createElement('h3', {
+            className: 'font-medium text-gray-800 mb-2'
+          }, '戦闘予測'),
+          React.createElement('div', {
+            className: 'text-sm space-y-1'
+          },
+            React.createElement('div', {
+              className: battleSim.playerSurvives ? 'text-green-600' : 'text-red-600'
+            }, `生存: ${battleSim.playerSurvives ? '✅' : '❌'} (被ダメージ: ${battleSim.damageReceived})`),
+            React.createElement('div', {
+              className: battleSim.canDefeatBoss ? 'text-green-600' : 'text-red-600'
+            }, `撃破: ${battleSim.canDefeatBoss ? '✅' : '❌'}`),
+            React.createElement('div', {
+              className: `font-medium ${battleSim.victory ? 'text-green-600' : 'text-red-600'}`
+            }, `結果: ${battleSim.victory ? '勝利' : '敗北'}`)
+          )
+        ),
+        
+        React.createElement('div', {
+          className: 'space-y-3'
+        },
+          React.createElement('button', {
+            onClick: () => {
+              setBattleResult(battleSim);
+              setBattlePhase('result');
+            },
+            className: 'w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+          }, '戦闘開始！'),
+          
+          React.createElement('button', {
+            onClick: () => setBattlePhase('preview'),
+            className: 'w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+          }, '戻る')
+        )
+      );
+    })()
+  )
+),
+
+// 戦闘結果画面
+battlePhase === 'result' && battleResult && React.createElement('div', {
+  className: 'fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-4 z-50'
+},
+  React.createElement('div', {
+    className: 'bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center'
+  },
+    React.createElement('h2', {
+      className: 'text-2xl font-bold text-gray-800 mb-6'
+    }, battleResult.victory ? '🎉 勝利！' : '💀 敗北...'),
+    
+    React.createElement('div', {
+      className: 'mb-6'
+    },
+      React.createElement('div', {
+        className: 'text-4xl mb-4'
+      }, battleResult.victory ? '👑' : '💀'),
+      
+      React.createElement('p', {
+        className: 'text-gray-600 mb-4'
+      }, battleResult.victory ? 
+        `${currentBoss.name}を見事に倒しました！` : 
+        `${currentBoss.name}に敗れました...`
+      ),
+      
+      React.createElement('div', {
+        className: 'text-sm text-gray-600 space-y-1'
+      },
+        React.createElement('div', {}, `あなたのHP: ${battleResult.playerPower.hp}`),
+        React.createElement('div', {}, `受けたダメージ: ${battleResult.damageReceived}`),
+        React.createElement('div', {}, `与えたダメージ: ${battleResult.playerPower.attack}`)
+      )
+    ),
+    
+    React.createElement('div', {
+      className: 'space-y-3'
+    },
+      React.createElement('button', {
+        onClick: () => {
+          setBattlePhase('none');
+          setCurrentBoss(null);
+          setBattleResult(null);
+        },
+        className: 'w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-xl transition-colors'
+      }, '閉じる')
     )
   )
 ),
